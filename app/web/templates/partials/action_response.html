@@ -1,0 +1,12 @@
+{# Appended into #log; everything else updates via hx-swap-oob in one round-trip. #}
+{% if echo_command %}<div class="log-entry echo">&gt; {{ echo_command }}</div>{% endif %}
+{% for ev in new_events %}
+<div class="log-entry {{ ev.kind }}">{{ ev.text }}</div>
+{% endfor %}
+{% if run.status != 'alive' %}{% include "partials/death_panel.html" %}{% endif %}
+
+<div id="char-sheet" hx-swap-oob="true">{% include "partials/char_sheet.html" %}</div>
+<div id="minimap" hx-swap-oob="true">{{ minimap | safe }}</div>
+<div id="inventory-panel" hx-swap-oob="true">{% include "partials/inventory_panel.html" %}</div>
+<div id="shop-panel" hx-swap-oob="true">{% if shop %}{% include "partials/shop_panel.html" %}{% endif %}</div>
+<div id="scene" hx-swap-oob="true">{% include "partials/scene.html" %}</div>

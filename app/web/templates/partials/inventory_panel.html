@@ -1,0 +1,5 @@
+<h3>INVENTORY</h3>
+<input class="inv-search" name="q" placeholder="search items..."
+       hx-get="/inventory" hx-trigger="keyup changed delay:200ms" hx-target="#inventory-panel"
+       value="{{ inv_query or '' }}">
+{% include "partials/inventory_list.html" %}

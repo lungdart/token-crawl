@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}TOKEN CRAWL — The dead{% endblock %}
+{% block content %}
+<header class="masthead"><h1>The dead</h1><p class="tagline"><a href="/">← back to the entrance</a></p></header>
+<section class="board">
+  <table>
+    <tr><th>#</th><th>Crawler</th><th>Class</th><th>Result</th><th>Floor</th><th>Rooms</th><th>XP</th><th>Kills</th></tr>
+    {% for row in leaderboard %}
+    <tr>
+      <td>{{ loop.index }}</td><td>{{ row.name }}</td><td>{{ row.class_name }}</td>
+      <td>{{ row.death_cause or 'died' }}</td>
+      <td>{{ row.floor }}</td><td>{{ row.rooms }}</td><td>{{ row.xp }}</td><td>{{ row.kills }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">Nobody has died yet. Statistically troubling.</td></tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

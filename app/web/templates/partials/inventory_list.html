@@ -1,0 +1,16 @@
+<div id="inv-list">
+  {% for e in inventory %}
+  <div class="inv-row rarity-{{ e.item.rarity }}" title="{{ e.item.flavor }}">
+    <span class="inv-name">{{ e.item.name }}{% if e.qty > 1 %} ×{{ e.qty }}{% endif %}</span>
+    <span class="inv-meta">
+      {%- if e.equipped %}<b>{{ e.slots | join(', ') }}</b>
+      {%- elif e.item.slots %}{{ e.item.slots | join('+') }}
+      {%- elif e.item.use_effects %}usable
+      {%- else %}carried{% endif -%}
+    </span>
+  </div>
+  {% else %}
+  <div class="inv-row empty">— nothing —</div>
+  {% endfor %}
+</div>
+<p class="hint tiny">type <code>@</code> to reference an item · <code>equip</code> · <code>use</code> · <code>sell</code></p>

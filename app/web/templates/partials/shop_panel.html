@@ -1,0 +1,12 @@
+<h3>{{ shop.front.keeper_name }}</h3>
+<p class="shop-flavor">{{ shop.front.greeting }}</p>
+<table class="shop-stock">
+  {% for s in shop.stock %}
+  <tr class="rarity-{{ s.rarity }}">
+    <td>{{ loop.index }}.</td>
+    <td title="{{ s.hint }}">{{ s.name }}</td>
+    <td>{{ s.price }}g</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="hint tiny"><code>buy 2</code> · <code>sell @item</code> · “???” is revealed on purchase</p>

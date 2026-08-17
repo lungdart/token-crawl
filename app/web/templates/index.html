@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}TOKEN CRAWL — Enter the Dungeon{% endblock %}
+{% block content %}
+<header class="masthead">
+  <h1>TOKEN CRAWL</h1>
+  <p class="tagline">Nobody built this dungeon. The first crawler to walk into a room is the
+  reason it exists — and every crawler after them walks into the same one.</p>
+</header>
+
+{% if error %}<div class="log-entry system error">{{ error }}</div>{% endif %}
+
+<section class="new-character">
+  <h2>CRAWLER APPLICATION FORM 7-B</h2>
+  <form method="post" action="/crawler">
+    <label>Crawler name
+      <input name="name" maxlength="40" required placeholder="e.g. Doug">
+    </label>
+    <label>What kind of character do you want to play?
+      <span class="hint">Anything you like, in your own words. There is no class list to pick from.</span>
+      <textarea name="concept" maxlength="{{ max_concept }}" rows="3" required
+        placeholder="e.g. a washed-up plumber with anger issues and one good wrench"></textarea>
+    </label>
+
+    <p class="warning">
+      <strong>The dungeon reads what you wrote and decides what you actually are.</strong>
+      It takes liberties. Ask for a necromancer and you may be handed an Undertaker — same
+      bones, different job title. Whatever it hands you is what you play. That is the game,
+      not a fault in it.
+    </p>
+    <button type="submit">ENTER THE DUNGEON <span class="blink">▮</span></button>
+  </form>
+</section>
+
+<section class="board">
+  <h2>The dead <a class="tiny" href="/leaderboard">(full board)</a></h2>
+  <table>
+    <tr><th>#</th><th>Crawler</th><th>Class</th><th>Result</th><th>Floor</th><th>Rooms</th><th>XP</th><th>Kills</th></tr>
+    {% for row in leaderboard %}
+    <tr>
+      <td>{{ loop.index }}</td><td>{{ row.name }}</td><td>{{ row.class_name }}</td>
+      <td>{{ row.death_cause or 'died' }}</td>
+      <td>{{ row.floor }}</td><td>{{ row.rooms }}</td><td>{{ row.xp }}</td><td>{{ row.kills }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">No crawlers yet. The dungeon waits, freshly mopped.</td></tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

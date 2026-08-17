@@ -1,0 +1,12 @@
+<div class="death-panel">
+  {% if run.status == 'dead' %}
+  <h2>You died</h2>
+  <p>Cause of death: {{ run.death_cause or 'unrecorded' }}.</p>
+  {% else %}
+  <h2>Descended</h2>
+  <p>You went as deep as the dungeon is built.</p>
+  {% endif %}
+  <p>Floor {{ run.floor_id }} · {{ rooms }} rooms · {{ run.xp }} XP · {{ run.kills }} kills</p>
+  {% if rank %}<p>Rank #{{ rank }}.</p>{% endif %}
+  <form method="post" action="/reroll"><button>Roll a new crawler</button></form>
+</div>

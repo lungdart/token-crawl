@@ -1,0 +1,135 @@
+/* Green-on-black CRT terminal theme. */
+:root {
+  --bg: #050a06;
+  --panel: #0a140c;
+  --fg: #7dff9a;
+  --dim: #3f8a52;
+  --amber: #ffcf6e;
+  --red: #ff6e6e;
+  --blue: #7ecbff;
+  --border: #1d3a25;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: "IBM Plex Mono", "Fira Mono", ui-monospace, monospace;
+  font-size: 15px; line-height: 1.5;
+}
+.crt { max-width: 1100px; margin: 0 auto; padding: 16px;
+  text-shadow: 0 0 6px rgba(125, 255, 154, 0.25); }
+a { color: var(--blue); }
+h1, h2, h3 { font-weight: 700; letter-spacing: 2px; color: var(--amber);
+  text-transform: uppercase; margin: 0 0 8px; }
+h1 { font-size: 28px; }
+h3 { font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.masthead { text-align: center; margin: 24px 0; }
+.tagline { color: var(--dim); }
+.tiny { font-size: 11px; }
+.hint { color: var(--dim); display: block; font-weight: normal; margin: 2px 0 6px; }
+.new-character label { font-weight: 700; }
+/* Says plainly that what you type is not what you get, before you type it. */
+.warning { border-left: 3px solid var(--amber); background: rgba(255, 207, 110, 0.06);
+  color: var(--fg); padding: 10px 14px; margin: 0 0 16px; font-size: 14px; }
+.warning strong { color: var(--amber); display: block; margin-bottom: 4px; }
+.blink { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* character creation */
+.new-character, .board { background: var(--panel); border: 1px solid var(--border);
+  padding: 16px; margin-bottom: 16px; border-radius: 4px; }
+.new-character label { display: block; margin-bottom: 12px; color: var(--dim); }
+.new-character input, .new-character textarea, #prompt input, .inv-search {
+  width: 100%; background: #02110699; color: var(--fg); border: 1px solid var(--border);
+  padding: 8px; font: inherit; border-radius: 3px; }
+.new-character button, .death-panel button {
+  background: var(--amber); color: #1a1200; border: none; padding: 10px 18px;
+  font: inherit; font-weight: 700; letter-spacing: 1px; cursor: pointer; border-radius: 3px; }
+.board table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.board th, .board td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.board th { color: var(--dim); }
+.error { color: var(--red); }
+
+/* game layout */
+.game-grid { display: grid; grid-template-columns: 1fr 300px; gap: 14px; }
+@media (max-width: 860px) { .game-grid { grid-template-columns: 1fr; } }
+.play { display: flex; flex-direction: column; min-height: 80vh; }
+.side > div { background: var(--panel); border: 1px solid var(--border);
+  border-radius: 4px; padding: 10px; margin-bottom: 12px; }
+
+/* scene (Sierra picture slot; pixel-art bolts on here later) */
+.scene-card { background: linear-gradient(180deg, #0c2213, #071409);
+  border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.scene-art { font-size: 22px; color: var(--dim); letter-spacing: 6px; }
+.scene-title { color: var(--amber); font-size: 12px; letter-spacing: 2px; }
+
+/* log */
+#log { flex: 1; overflow-y: auto; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 4px; padding: 12px; max-height: 62vh; }
+.log-entry { margin-bottom: 6px; white-space: pre-wrap; }
+.log-entry.system { color: var(--amber); }
+.log-entry.combat { color: var(--fg); }
+.log-entry.loot { color: var(--blue); }
+.log-entry.death { color: var(--red); font-weight: 700; }
+.log-entry.echo { color: var(--dim); }
+
+/* prompt */
+#prompt { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.caret { color: var(--amber); font-weight: 700; }
+.htmx-indicator { display: none; color: var(--dim); font-size: 12px; white-space: nowrap; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+
+/* char sheet */
+.cls { color: var(--dim); font-size: 11px; text-transform: none; letter-spacing: 0; }
+.hpbar { position: relative; background: #131313; border: 1px solid var(--border);
+  height: 18px; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.hpfill { background: linear-gradient(90deg, #1f8a3f, #46d06f); height: 100%; }
+.hplabel { position: absolute; inset: 0; text-align: center; font-size: 11px;
+  line-height: 18px; color: #eaffea; }
+table.stats { width: 100%; font-size: 12px; }
+table.stats td:nth-child(odd) { color: var(--dim); }
+.ability { font-size: 12px; color: var(--blue); }
+.cd { color: var(--dim); }
+
+/* minimap */
+#minimap svg { display: block; margin: 0 auto; }
+.minimap .cell { fill: #10301a; stroke: var(--dim); stroke-width: 1; }
+.minimap .cell.here { fill: #2b7a41; stroke: var(--amber); }
+.minimap .exit { stroke: var(--dim); stroke-width: 2; }
+.minimap .glyph { fill: var(--amber); font-size: 11px; }
+
+/* inventory */
+.inv-search { margin-bottom: 8px; font-size: 12px; }
+.inv-row { display: flex; justify-content: space-between; font-size: 12px;
+  padding: 2px 0; border-bottom: 1px dotted #12251880; }
+.inv-meta { color: var(--dim); }
+.rarity-rare .inv-name, tr.rarity-rare td { color: var(--amber); }
+.rarity-uncommon .inv-name, tr.rarity-uncommon td { color: var(--blue); }
+.rarity-junk .inv-name, tr.rarity-junk td { color: var(--dim); }
+.inv-row.empty { color: var(--dim); justify-content: center; }
+
+/* shop */
+.shop-flavor { font-size: 12px; color: var(--dim); font-style: italic; }
+.shop-stock { width: 100%; font-size: 12px; }
+.shop-stock td { padding: 2px 4px; }
+
+/* death */
+.death-panel { border: 2px solid var(--red); border-radius: 4px; padding: 14px;
+  margin-top: 10px; text-align: center; background: #1a0808; }
+.death-panel h2 { color: var(--red); }
+code { color: var(--amber); }
+
+/* class resource bar */
+.resbar { margin-top: -4px; }
+.resfill { background: linear-gradient(90deg, #1f5f8a, #46a6d0); height: 100%; }
+.ability .cost { color: var(--blue); font-size: 10px; }
+
+/* @item autocomplete */
+#prompt { position: relative; }
+.autocomplete {
+  display: none; position: absolute; bottom: 100%; left: 18px; z-index: 20;
+  min-width: 240px; background: #071409; border: 1px solid var(--border);
+  border-radius: 3px; margin-bottom: 4px; box-shadow: 0 4px 18px #000a;
+}
+.ac-row { padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.ac-row:hover, .ac-row.on { background: #143820; color: var(--amber); }

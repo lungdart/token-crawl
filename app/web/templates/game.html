@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ run.name }} — Floor {{ run.floor_id }}{% endblock %}
+{% block content %}
+<div class="game-grid">
+  <main class="play">
+    {# Sierra layout: scene region above the log. v1 shows a placeholder card; #}
+    {# generated pixel-art scenes bolt on here later as an OOB partial swap. #}
+    <div id="scene">{% include "partials/scene.html" %}</div>
+
+    <div id="log">
+      {% for ev in events %}
+      <div class="log-entry {{ ev.kind }}">{{ ev.text }}</div>
+      {% endfor %}
+      {% if run.status != 'alive' %}{% include "partials/death_panel.html" %}{% endif %}
+    </div>
+
+    <form id="prompt" hx-post="/action" hx-target="#log" hx-swap="beforeend"
+          hx-disabled-elt="find input" hx-indicator="#spinner"
+          hx-on::after-request="this.reset(); document.getElementById('log').scrollTop = 1e9">
+      <span class="caret">&gt;</span>
+      <input id="command" name="command" autocomplete="off" autofocus maxlength="300"
+             placeholder="what do you do?"
+             {% if run.status != 'alive' %}disabled{% endif %}>
+      <span id="spinner" class="htmx-indicator">…</span>
+      <div id="ac" class="autocomplete"></div>
+    </form>
+  </main>
+
+  <aside class="side">
+    <div id="char-sheet">{% include "partials/char_sheet.html" %}</div>
+    <div id="minimap-box"><h3>Map</h3><div id="minimap">{{ minimap | safe }}</div></div>
+    <div id="inventory-panel">{% include "partials/inventory_panel.html" %}</div>
+    <div id="shop-panel">{% if shop %}{% include "partials/shop_panel.html" %}{% endif %}</div>
+  </aside>
+</div>
+
+<script id="item-names" type="application/json">{{ item_names | tojson }}</script>
+<script>
+// `@` autocomplete over inventory. Beyond convenience this is a reliability fix: an
+// `@` reference resolves to an exact item rather than fuzzy substring matching.
+(function () {
+  const input = document.getElementById('command');
+  const box = document.getElementById('ac');
+  let items = [], active = -1;
+  try { items = JSON.parse(document.getElementById('item-names').textContent) || []; } catch (e) {}
+
+  function token() {
+    const upto = input.value.slice(0, input.selectionStart);
+    const at = upto.lastIndexOf('@');
+    if (at === -1) return null;
+    const frag = upto.slice(at + 1);
+    return /[\n]/.test(frag) ? null : { at, frag };
+  }
+  function close() { box.style.display = 'none'; active = -1; }
+  function render() {
+    const t = token();
+    if (!t) return close();
+    const q = t.frag.toLowerCase();
+    const hits = items.filter(n => n.toLowerCase().includes(q)).slice(0, 6);
+    if (!hits.length) return close();
+    // Item names are model-authored and reach here from the shared world cache, so they
+    // are built as DOM nodes with textContent — never interpolated into markup.
+    box.replaceChildren(...hits.map((n, i) => {
+      const row = document.createElement('div');
+      row.className = i === active ? 'ac-row on' : 'ac-row';
+      row.dataset.name = n;
+      row.textContent = n;
+      return row;
+    }));
+    box.style.display = 'block';
+  }
+  function choose(name) {
+    const t = token();
+    if (!t) return;
+    const before = input.value.slice(0, t.at);
+    const after = input.value.slice(input.selectionStart);
+    input.value = `${before}@${name}${after}`;
+    input.selectionStart = input.selectionEnd = (before + '@' + name).length;
+    close(); input.focus();
+  }
+  input.addEventListener('input', () => { active = -1; render(); });
+  input.addEventListener('keydown', (e) => {
+    if (box.style.display !== 'block') return;
+    const rows = [...box.querySelectorAll('.ac-row')];
+    if (e.key === 'ArrowDown') { active = (active + 1) % rows.length; render(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { active = (active - 1 + rows.length) % rows.length; render(); e.preventDefault(); }
+    else if (e.key === 'Tab' || (e.key === 'Enter' && active >= 0)) {
+      choose(rows[Math.max(active, 0)].dataset.name); e.preventDefault();
+    } else if (e.key === 'Escape') close();
+  });
+  box.addEventListener('mousedown', (e) => {
+    const row = e.target.closest('.ac-row');
+    if (row) { choose(row.dataset.name); e.preventDefault(); }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 120));
+})();
+document.getElementById('log').scrollTop = 1e9;
+</script>
+{% endblock %}
