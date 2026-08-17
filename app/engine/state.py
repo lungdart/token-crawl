@@ -74,6 +74,7 @@ _PLAIN_FALLBACK = {
     "ability_on_cooldown": "That is not ready yet.",
     "resource_too_low": "You do not have enough left for that.",
     "no_stairs_here": "There are no stairs here.",
+    "blocked_by_enemies": "Something hostile is between you and the way out. Retreat, or deal with it.",
     "flee_failed": "You fail to get away.",
     "rejected": "That is not something you can do here.",
     "rate_limited": "Slow down.",

@@ -8,8 +8,37 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body>
-  <div class="crt">
+  <div class="page">
     {% block content %}{% endblock %}
   </div>
+
+  {# Why you are waiting. On every page, because every page can start a generation —
+     making a crawler is the longest wait in the game and it is not a turn. The line
+     comes from the server the moment the cache misses, so it is what is happening
+     rather than a guess from how long it has taken. #}
+  <div id="working" hidden aria-live="polite">
+    <span class="working-mark"></span><span id="working-text"></span>
+  </div>
+  <script>
+  (function () {
+    const box = document.getElementById('working');
+    const text = document.getElementById('working-text');
+
+    function show(message) { text.textContent = message; box.hidden = false; }
+    function hide() { box.hidden = true; text.textContent = ''; }
+
+    function connect() {
+      const source = new EventSource('/events');
+      source.addEventListener('status', (e) => show(e.data));
+      source.onerror = () => { source.close(); setTimeout(connect, 3000); };
+    }
+    connect();
+
+    // A turn is over when its response lands, whatever it said. A full page navigation
+    // ends it by replacing the page.
+    document.body.addEventListener('htmx:afterRequest', hide);
+    document.body.addEventListener('htmx:sendError', hide);
+  })();
+  </script>
 </body>
 </html>

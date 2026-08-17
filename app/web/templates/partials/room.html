@@ -1,0 +1,32 @@
+{# Where you are. Not the log: this describes the room and stays put while the log
+   scrolls. The prose is for atmosphere; the lines under it are what you can act on,
+   each labelled so it is obvious what it is. Enemies get their own line — they are the
+   thing that kills you, not another point of interest. #}
+<section id="room" class="room"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <p class="room-desc">{{ description }}</p>
+
+  {% set enemies = highlights | selectattr("kind", "equalto", "enemy") | list %}
+  {% set rest = highlights | rejectattr("kind", "equalto", "enemy") | list %}
+
+  {% if enemies %}
+  <p class="marks"><span class="marks-label">Hostile:</span>
+    {%- for h in enemies %}
+    <span class="mark mark--enemy" title="{{ h.brief }}">{{ h.name }}</span>{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  </p>
+  {% endif %}
+
+  {% if rest %}
+  <p class="marks"><span class="marks-label">Of interest:</span>
+    {%- for h in rest %}
+    <span class="mark mark--{{ h.kind }}" title="{{ h.brief }}">{{ h.name }}</span>{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  </p>
+  {% endif %}
+
+  <p class="marks"><span class="marks-label">Exits:</span>
+    {%- if exits %}
+    {%- for d in exits %} <span class="mark mark--exit">{{ d | capitalize }}</span>{% if not loop.last %},{% endif %}{% endfor %}
+    {%- else %} <span class="mark mark--none">none</span>{% endif %}
+  </p>
+</section>

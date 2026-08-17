@@ -13,10 +13,6 @@ class Descend(BaseModel):
     type: Literal["descend"]
 
 
-class Look(BaseModel):
-    type: Literal["look"]
-
-
 class Attack(BaseModel):
     type: Literal["attack"]
     target_key: str
@@ -82,7 +78,7 @@ class Rejected(BaseModel):
 
 CanonicalAction = Annotated[
     Union[
-        Move, Descend, Look, Attack, UseAbility, Take, UseItem, EquipItem, UnequipItem,
+        Move, Descend, Attack, UseAbility, Take, UseItem, EquipItem, UnequipItem,
         Flee, Inventory, ShopBuy, ShopSell, NovelAction, Rejected,
     ],
     Field(discriminator="type"),

@@ -3,10 +3,13 @@
 {% for ev in new_events %}
 <div class="log-entry {{ ev.kind }}">{{ ev.text }}</div>
 {% endfor %}
-{% if run.status != 'alive' %}{% include "partials/death_panel.html" %}{% endif %}
 
+<div id="death" hx-swap-oob="true">
+  {% if run.status != 'alive' %}{% include "partials/death_panel.html" %}{% endif %}
+</div>
 <div id="char-sheet" hx-swap-oob="true">{% include "partials/char_sheet.html" %}</div>
 <div id="minimap" hx-swap-oob="true">{{ minimap | safe }}</div>
 <div id="inventory-panel" hx-swap-oob="true">{% include "partials/inventory_panel.html" %}</div>
 <div id="shop-panel" hx-swap-oob="true">{% if shop %}{% include "partials/shop_panel.html" %}{% endif %}</div>
 <div id="scene" hx-swap-oob="true">{% include "partials/scene.html" %}</div>
+{% with oob=true %}{% include "partials/room.html" %}{% endwith %}

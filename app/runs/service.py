@@ -79,6 +79,7 @@ def create_run(session_id: str, name: str, concept: str) -> int:
 
     ctx.save_area_state(ctx.area_state())  # the landing counts as explored
     movement.ensure_area_enemies(ctx)
+    movement.ensure_area_art(ctx)
     movement.describe_area(ctx)
     ctx.persist()
     return run_id

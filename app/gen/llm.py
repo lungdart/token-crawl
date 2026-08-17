@@ -17,6 +17,8 @@ out-of-depth horror is the fun rather than a fault.
 """
 from __future__ import annotations
 
+import base64
+import io
 import json
 import re
 import time
@@ -55,7 +57,10 @@ class LLMBackend(Protocol):
         output_model: type[M],
         max_tokens: int | None = None,
         session_id: str | None = None,
+        reasoning: bool = True,
     ) -> M: ...
+
+    def draw(self, *, kind: str, model: str, prompt: str) -> bytes: ...
 
 
 def _log_call(kind: str, model: str, usage: dict | None, duration_ms: int, ok: bool,
@@ -114,7 +119,7 @@ class OpenRouterBackend:
         }
 
     def generate(self, *, kind, model, system_blocks, user, output_model,
-                 max_tokens=None, session_id=None):
+                 max_tokens=None, session_id=None, reasoning=True):
         messages = [
             {"role": "system", "content": system_blocks},
             {"role": "user", "content": user},
@@ -130,6 +135,11 @@ class OpenRouterBackend:
             # Return real cost + cache stats in the usage object.
             "usage": {"include": True},
         }
+        if not reasoning:
+            # Some models think before answering and count that thinking against the
+            # output budget. On a task with no reasoning in it — drawing a grid — that
+            # burns the whole budget and truncates the answer, at ten times the price.
+            body["reasoning"] = {"enabled": False}
         if session_id:
             # Pin a burst of related calls (e.g. generating one floor) to the same
             # upstream, so the cached floor-brief prefix stays warm across them.
@@ -189,6 +199,44 @@ class OpenRouterBackend:
         raise GenerationError(f"{kind}: generation failed after retries: {last_error}")
 
 
+    def draw(self, *, kind: str, model: str, prompt: str) -> bytes:
+        """Ask for a picture. Returns the raw image bytes.
+
+        A separate path from generate(): there is no schema to enforce and nothing to
+        retry into — an image either comes back or it does not.
+        """
+        limits.charge_generation()
+        started = time.monotonic()
+        try:
+            resp = self.client.post(
+                OPENROUTER_URL, headers=self._headers(),
+                json={"model": model,
+                      "messages": [{"role": "user", "content": prompt}],
+                      "modalities": ["image", "text"],
+                      "usage": {"include": True}},
+            )
+        except httpx.HTTPError as exc:
+            _log_call(kind, model, None, int((time.monotonic() - started) * 1000), False,
+                      error=str(exc))
+            raise GenerationError(f"{kind}: {exc}") from exc
+
+        duration = int((time.monotonic() - started) * 1000)
+        if resp.status_code != 200:
+            detail = _error_detail(resp)
+            _log_call(kind, model, None, duration, False, error=detail)
+            raise GenerationError(f"{kind}: {detail}")
+
+        data = resp.json()
+        usage = data.get("usage") or {}
+        images = (data.get("choices") or [{}])[0].get("message", {}).get("images") or []
+        if not images:
+            _log_call(kind, model, usage, duration, False, error="no image in response")
+            raise GenerationError(f"{kind}: the model returned no image")
+        _log_call(kind, model, usage, duration, True)
+        url = images[0].get("image_url", {}).get("url", "")
+        return base64.b64decode(url.split(",", 1)[1])
+
+
 def _error_detail(resp: httpx.Response) -> str:
     try:
         return json.dumps(resp.json().get("error", resp.json()))[:300]
@@ -205,7 +253,7 @@ class FixtureBackend:
         self.calls: list[tuple[str, str]] = []  # (kind, user) — inspected by tests
 
     def generate(self, *, kind, model, system_blocks, user, output_model,
-                 max_tokens=None, session_id=None):
+                 max_tokens=None, session_id=None, reasoning=True):
         self.calls.append((kind, user))
         data = self._lookup(kind, user) or _generic_fixture(kind, user)
         if data is None:
@@ -213,6 +261,24 @@ class FixtureBackend:
         obj = output_model.model_validate(data)
         _log_call(kind, "fixture", None, 0, True)
         return obj
+
+    def draw(self, *, kind: str, model: str, prompt: str) -> bytes:
+        """No network: draw a placeholder whose colours come from the prompt, so offline
+        rooms differ from each other and the pipeline downstream is exercised for real."""
+        from PIL import Image, ImageDraw
+
+        self.calls.append((kind, prompt))
+        seed = sum(ord(c) for c in prompt)
+        img = Image.new("RGB", (256, 192), (18 + seed % 24, 14 + seed % 18, 22 + seed % 30))
+        d = ImageDraw.Draw(img)
+        for i in range(12):
+            v = 30 + (seed * (i + 3)) % 150
+            d.rectangle([0, 60 + i * 6, 256, 66 + i * 6], fill=(v, v - 10, v - 24))
+        d.rectangle([90 + seed % 40, 40, 150 + seed % 40, 120],
+                    fill=(200, 150 + seed % 60, 60))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
 
     def _lookup(self, kind: str, user: str) -> dict | None:
         kind_dir = self.dir / kind
@@ -331,6 +397,7 @@ def _generic_fixture(kind: str, user: str) -> dict | None:
             "ability_on_cooldown": two("You are not ready to do that again.", "Not yet."),
             "resource_too_low": two("You do not have enough left for that.", "There is nothing left to spend."),
             "no_stairs_here": two("There are no stairs in this room.", "Nothing here leads down."),
+            "blocked_by_enemies": two("It moves to cut you off.", "Not while that is watching you."),
             "flee_failed": two("You do not get clear.", "The way out closes before you reach it."),
             "rejected": ["That is not something you can do here.",
                          "Nothing in this dungeon is listening for that.",

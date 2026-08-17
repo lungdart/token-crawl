@@ -216,6 +216,16 @@ def do_use_ability(ctx: RunContext, ability_name: str) -> None:
     enemy_turns(ctx)
 
 
+def _retreat_direction(ctx: RunContext, dirs: list[str]) -> str:
+    """Back the way you came. Retreating deeper into unexplored ground is not a retreat —
+    it lands you in a room nobody has seen, which may be worse than the one you left.
+    Only when there is no way back (a new run, or arriving by stairs) is it a gamble."""
+    came_from = ctx.run["stats"].get("came_from")
+    if came_from in dirs:
+        return came_from
+    return dirs[ctx.rng.next().randrange(len(dirs))]
+
+
 def do_flee(ctx: RunContext) -> None:
     """Contested (design review #5). Entry is safe and healing is free, so escape being
     uncertain is the only thing keeping a bad room dangerous."""
@@ -228,19 +238,20 @@ def do_flee(ctx: RunContext) -> None:
 
     enemies = _enemy_combatants(ctx)
     if not enemies:
-        d = dirs[ctx.rng.next().randrange(len(dirs))]
         from app.engine.movement import do_move
-        do_move(ctx, d)
+        do_move(ctx, _retreat_direction(ctx, dirs), retreating=True)
         return
 
+    # Retreating is now the only way out of a room with something hostile in it, so it
+    # usually works: failing should be the unlucky case, not the coin toss it was when
+    # you could also just walk out. Speed still decides how unlucky.
     player = ctx.player_combatant()
     fastest = max(e.eff("speed") for _, e in enemies)
-    chance = max(0.15, min(0.9, 0.5 + 0.07 * (player.eff("speed") - fastest)))
+    chance = max(0.55, min(0.97, 0.85 + 0.05 * (player.eff("speed") - fastest)))
     if ctx.rng.random() <= chance:
-        d = dirs[ctx.rng.next().randrange(len(dirs))]
         ctx.say("You break away.", "combat")
         from app.engine.movement import do_move
-        do_move(ctx, d)
+        do_move(ctx, _retreat_direction(ctx, dirs), retreating=True)
     else:
         ctx.say_line("flee_failed", "combat")
         enemy_turns(ctx)

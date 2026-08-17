@@ -64,7 +64,10 @@ def test_misc():
     assert fp("inventory").type == "inventory"
     assert fp("flee").type == "flee"
     assert fp("descend").type == "descend"
-    assert fp("").type == "look"
+    # "look" is not a command any more: the room is always on screen, and "look at the
+    # tally marks" is an examine that belongs with the adjudicator, not a keyword.
+    assert fp("look") is None
+    assert fp("look at the tally marks") is None
 
 
 def test_freeform_falls_through_to_llm_tier():

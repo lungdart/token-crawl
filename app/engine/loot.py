@@ -53,7 +53,7 @@ def do_take(ctx: RunContext, target_key: str) -> None:
             ctx.run["floor_id"], f"{entity.name}: {entity.brief}", "common",
             "found in a room",
             name_key=f"world_{ctx.run['area_id']}_{entity.key}",
-            context=f"{content.name}: {content.description}",
+            context=content.description,
         )
         item = repo.get_item(item_id)
         ctx.add_item(item_id)

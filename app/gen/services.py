@@ -13,11 +13,15 @@ import time
 from app import db, logs
 from app.config import settings
 from app.gen import llm, prompts
+from app.gen.art import to_room_art
+from app.engine import progress
 from app.gen.locks import claim_row, get_or_generate
+from app.security import limits
 from app.models.character import CrawlerClass, LevelUp
 from app.models.entities import AreaContent, DropTable, EnemyStatBlock, Item, SafeRoom
 from app.models.floor_brief import FloorBrief, GeneratedFloor
 from app.models.responses import ResponseBank
+from app.models.scene import RoomArt
 from app.models.rulings import InteractionRuling
 from app.world import floors, repo
 
@@ -70,6 +74,36 @@ def ensure_floor(floor_id: int):
         reclaim_stale=lambda _s: _reclaim("floors", "id=?", (floor_id,)),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("floors", "id=?", (floor_id,)),
+    )
+
+
+# --- room art ----------------------------------------------------------------
+
+def ensure_room_art(floor_id: int, area_id: int, description: str,
+                    *, has_stairs: bool = False, is_safe_room: bool = False) -> RoomArt:
+    """The picture of a room, drawn on first sight and cached forever.
+
+    An image model draws it full size and full colour; app/gen/art.py shrinks it to 64x48
+    and quantizes it to sixteen dithered colours. See scripts/palette_bakeoff.py for the
+    comparison behind those numbers.
+    """
+    def generate_and_store():
+        png = llm.get_backend().draw(
+            kind="room_art", model=settings.image_model,
+            prompt=prompts.room_art_prompt(description, has_stairs=has_stairs,
+                                           is_safe_room=is_safe_room),
+        )
+        art = RoomArt.model_validate(to_room_art(png))
+        repo.store_art(area_id, art)
+        return repo.ready_art(area_id)
+
+    return get_or_generate(
+        kind="room_art", key=(area_id,),
+        select_ready=lambda: repo.ready_art(area_id),
+        claim=lambda: repo.claim_art(area_id),
+        reclaim_stale=lambda _s: _reclaim("visual_assets", "kind='room' AND ref_id=?", (area_id,)),
+        generate_and_store=generate_and_store,
+        mark_failed=lambda: repo.mark_failed("visual_assets", "kind='room' AND ref_id=?", (area_id,)),
     )
 
 
@@ -234,6 +268,7 @@ def generate_item(floor_id: int, hint: str, rarity: str, source: str,
     level = brief.levels.max
 
 
+    progress.emit(limits.current_session(), "item")
     item = llm.get_backend().generate(
         kind="item", model=settings.gen_model,
         system_blocks=prompts.floor_prefix(brief),

@@ -27,6 +27,7 @@ class ResponseBank(BaseModel):
     ability_on_cooldown: list[str] = Lines   # ability not ready
     resource_too_low: list[str] = Lines      # not enough of the class resource
     no_stairs_here: list[str] = Lines        # tried to descend where there are none
+    blocked_by_enemies: list[str] = Lines    # tried to walk out past something hostile
     flee_failed: list[str] = Lines           # tried to escape and couldn't
     rejected: list[str] = Field(
         min_length=3, max_length=6,

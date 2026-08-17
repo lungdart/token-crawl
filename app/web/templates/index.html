@@ -11,7 +11,11 @@
 
 <section class="new-character">
   <h2>CRAWLER APPLICATION FORM 7-B</h2>
-  <form method="post" action="/crawler">
+  {# Posted with htmx so the page stays put while the crawler is made: several model
+     calls, and the longest wait in the game. A full navigation would replace the page
+     and take the status stream with it. Falls back to a normal form post without JS. #}
+  <form method="post" action="/crawler" hx-post="/crawler"
+        hx-disabled-elt="find button" hx-swap="none">
     <label>Crawler name
       <input name="name" maxlength="40" required placeholder="e.g. Doug">
     </label>

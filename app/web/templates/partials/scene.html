@@ -1,4 +1,14 @@
-<div class="scene-card">
-  <div class="scene-art">☰☷☰</div>
-  <div class="scene-title">Floor {{ run.floor_id }} · {{ rooms }} rooms</div>
-</div>
+{# The room. Served as a real PNG from its own URL — nothing about the picture is
+   embedded in this page, so there is nothing here to escape or parse, and the browser
+   caches it like any other image. It never changes once drawn. #}
+<figure class="scene">
+  {% if has_art %}
+  <img class="scene-art" src="/art/{{ area_id }}.png" width="64" height="48"
+       alt="This room, drawn.">
+  {% else %}
+  <div class="scene-art scene-art--dark" role="img" aria-label="This room has not been drawn.">
+    <span>unlit</span>
+  </div>
+  {% endif %}
+  <figcaption class="scene-where">{{ coords }}</figcaption>
+</figure>

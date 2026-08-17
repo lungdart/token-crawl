@@ -60,12 +60,13 @@ def area_prompt(x: int, y: int, *, is_landing: bool, has_stairs: bool, is_safe_r
                 enemy_density: float) -> str:
     lines = [
         f"Generate the room at coordinate ({x},{y}), {distance} rooms from the landing.",
+        "Rooms have no names. Write what it IS — the description is all a crawler gets.",
         "The floor is unbounded — there is no map edge and no far wall. Any direction may open.",
         "Neighboring rooms already generated (match their character; don't contradict them):",
     ]
     for d, info in neighbors.items():
         state = "open" if info["open_toward_us"] else "closed"
-        lines.append(f"  {d}: '{info['name']}' — its exit toward this room is {state}")
+        lines.append(f"  {d}: {info['gist']} — its exit toward this room is {state}")
     if not neighbors:
         lines.append("  (none yet — this room sets the tone for its stretch of tunnel)")
     for d, must_open in forced_exits.items():
@@ -159,6 +160,38 @@ def safe_room_prompt(area_name: str, slots: int, level: int = 1) -> str:
         "Mostly common, one or two uncommon, rare at most once. Stock some consumables — they are "
         "what a crawler can actually afford on the way past."
     )
+
+
+# --- room art ----------------------------------------------------------------
+
+def room_art_prompt(description: str, *, has_stairs: bool, is_safe_room: bool) -> str:
+    """What the image model is asked for.
+
+    The description leads and the composition is the model's to choose. An earlier version
+    specified the shot — ceiling above, far wall in the middle, floor receding below — and
+    got that identical archway for every room in the dungeon, however different the room
+    was underneath.
+
+    Nothing here asks for a palette or a pixel count: the picture is drawn full size and
+    full colour, and code shrinks and quantizes it afterwards.
+    """
+    extra = ""
+    if has_stairs:
+        extra = " A stairway leads down out of this room."
+    elif is_safe_room:
+        extra = " It is safe here, lit and lived in; someone keeps it."
+    return (
+        f'Pixel art drawing of a room matching this description:\n"{description[:900]}"'
+        f"{extra}\n\n"
+        "Retro 16-bit game art: flat blocky shading, hard edges, no anti-aliasing. Frame it "
+        "however suits this particular room — its shape and what is in it should decide the "
+        "view, not a house style. Use the full tonal range, from deep shadow to bright "
+        "highlight where light falls.\n"
+        "The drawing fills the entire frame, edge to edge, in a wide landscape shape. No "
+        "border, no frame, no matte, no white space around it. No text, no people, no "
+        "interface."
+    )
+
 
 
 # --- floor plans -------------------------------------------------------------

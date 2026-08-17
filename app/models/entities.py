@@ -41,7 +41,9 @@ class Exits(BaseModel):
 
 
 class AreaContent(BaseModel):
-    name: str = Field(max_length=60)
+    """A room. It has no name — at infinite scale a name is noise, and coordinates are
+    what a crawler can actually share with another crawler."""
+
     description: str = Field(max_length=1500, description="Second-person prose shown on entering.")
     exits: Exits
     entities: list[AreaEntity] = Field(max_length=8)

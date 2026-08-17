@@ -5,6 +5,7 @@ from app import db
 from app.models.character import CrawlerClass, LevelUp
 from app.models.entities import AreaContent, EnemyStatBlock, Item, SafeRoom
 from app.models.responses import ResponseBank
+from app.models.scene import RoomArt
 from app.models.rulings import InteractionRuling
 
 
@@ -64,14 +65,18 @@ def store_area(floor_id: int, x: int, y: int, content: AreaContent,
 
 
 def neighbor_summaries(floor_id: int, x: int, y: int) -> dict[str, dict]:
-    """Ready neighbors' name + reciprocal-exit info, for generation context."""
+    """Ready neighbours' opening line + reciprocal-exit info, for generation context.
+
+    Rooms have no names, so a neighbour is described by the first sentence of what it
+    actually looks like — which is better context for matching character anyway."""
     out = {}
     for d, (dx, dy) in {"n": (0, 1), "s": (0, -1), "e": (1, 0), "w": (-1, 0)}.items():
         row = ready_area(floor_id, x + dx, y + dy)
         if row:
             c = area_content(row)
             back = {"n": "s", "s": "n", "e": "w", "w": "e"}[d]
-            out[d] = {"name": c.name, "open_toward_us": getattr(c.exits, back)}
+            gist = c.description.split(". ")[0][:120]
+            out[d] = {"gist": gist, "open_toward_us": getattr(c.exits, back)}
     return out
 
 
@@ -93,6 +98,29 @@ def store_bank(floor_id: int, bank: ResponseBank) -> None:
             "UPDATE response_banks SET status='ready', bank_json=? WHERE floor_id=?",
             (bank.model_dump_json(), floor_id),
         )
+
+
+# --- room art ----------------------------------------------------------------
+
+def ready_art(area_id: int):
+    row = db.get().execute(
+        "SELECT asset_json FROM visual_assets WHERE kind='room' AND ref_id=? AND status='ready'",
+        (area_id,)).fetchone()
+    return RoomArt.model_validate_json(row["asset_json"]) if row else None
+
+
+def claim_art(area_id: int) -> bool:
+    with db.tx() as conn:
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO visual_assets (kind, ref_id) VALUES ('room', ?)", (area_id,))
+        return cur.rowcount > 0
+
+
+def store_art(area_id: int, art: RoomArt) -> None:
+    with db.tx() as conn:
+        conn.execute(
+            "UPDATE visual_assets SET status='ready', asset_json=? WHERE kind='room' AND ref_id=?",
+            (art.model_dump_json(), area_id))
 
 
 # --- floors ------------------------------------------------------------------

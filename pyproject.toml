@@ -13,6 +13,7 @@ dependencies = [
     "python-frontmatter>=1.1",
     "python-multipart>=0.0.9",
     "pyyaml>=6.0",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-markers = ["live: tests that hit the real Anthropic API"]
+markers = ["live: tests that hit the real OpenRouter API"]
 addopts = "-m 'not live'"
 
 [tool.uv]

@@ -31,8 +31,11 @@ def test_full_loop(game, session_id):
     assert ctx.run["hp"] == ctx.run["max_hp"]
     assert ctx.inventory(), "starting kit should exist"
 
-    ctx = _act(run_id, "look")
-    assert any("—" in t for _, t in ctx.events)
+    # The room is not narrated into the log at all now — it lives in its own panel, fed
+    # straight from the cache.
+    here = RunContext.load(run_id)
+    assert here.area().description
+    assert here.area().exits.open_dirs()
 
     # the landing is enemy-free by design; step off it to find something to fight
     d = RunContext.load(run_id).area().exits.open_dirs()[0]
@@ -116,7 +119,10 @@ def test_buy_and_sell_in_a_safe_room(game, session_id):
     with db.tx() as conn:
         conn.execute("UPDATE runs SET area_id=?, gold=500 WHERE id=?", (row["id"], run_id))
 
-    _act(run_id, "look")
+    from app.engine import movement
+    ctx = RunContext.load(run_id)
+    movement.describe_area(ctx)      # arriving is what opens the shop
+    ctx.persist()
     stock = repo.safe_room_stock(row["id"])
     assert stock and all(s["item_id"] is None for s in stock)  # JIT stock
 
@@ -167,6 +173,14 @@ def test_the_stairs_always_lead_somewhere(game, session_id):
     with db.tx() as conn:
         conn.execute("UPDATE runs SET area_id=? WHERE id=?", (row["id"], run_id))
 
+    # Nothing hostile may be watching: leaving a room with a threat in it means
+    # retreating, and the stairs are no exception.
+    ctx = RunContext.load(run_id)
+    state = ctx.area_state()
+    state["killed"] = [e.key for e in ctx.visible_entities() if e.kind == "enemy"]
+    ctx.save_area_state(state)
+    ctx.persist()
+
     _act(run_id, "descend")
     run = RunContext.load(run_id).run
     assert run["status"] == "alive", "descending must not end a run"
@@ -203,3 +217,39 @@ def test_leaderboard_orders_by_floor_then_rooms(game, session_id):
     board = service.leaderboard()
     assert board and board[0]["name"] == "Board"
     assert "rooms" in board[0] and board[0]["rooms"] >= 1
+
+
+def test_you_cannot_walk_past_something_hostile(game, session_id):
+    """Arriving still never provokes anything — you get to look and decide. But leaving
+    means retreating, and retreating can fail."""
+    from app.engine import movement
+
+    run_id = service.create_run(session_id, "Doug", "a plumber")
+    d = RunContext.load(run_id).area().exits.open_dirs()[0]
+    word = {"n": "north", "s": "south", "e": "east", "w": "west"}[d]
+    _act(run_id, word)
+
+    ctx = RunContext.load(run_id)
+    assert movement.hostiles_here(ctx), "expected something in the room to test against"
+    before = ctx.run["area_id"]
+
+    out = RunContext.load(run_id).area().exits.open_dirs()[0]
+    ctx = _act(run_id, {"n": "north", "s": "south", "e": "east", "w": "west"}[out])
+    assert RunContext.load(run_id).run["area_id"] == before, "walked out past a threat"
+    assert ctx.events, "being blocked should say so"
+
+
+def test_retreating_goes_back_the_way_you_came(game, session_id):
+    """Not a random exit — that pushed you deeper into unexplored ground, which is the
+    opposite of a retreat."""
+    run_id = service.create_run(session_id, "Doug", "a plumber")
+    landing = RunContext.load(run_id).run["area_id"]
+    d = RunContext.load(run_id).area().exits.open_dirs()[0]
+    _act(run_id, {"n": "north", "s": "south", "e": "east", "w": "west"}[d])
+    assert RunContext.load(run_id).run["area_id"] != landing
+
+    for _ in range(12):                      # escape is contested; it may take a try or two
+        _act(run_id, "flee")
+        if RunContext.load(run_id).run["area_id"] == landing:
+            return
+    raise AssertionError("retreating never returned to the room it came from")

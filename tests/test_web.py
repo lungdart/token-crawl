@@ -26,7 +26,7 @@ def test_index_and_character_creation_flow(client):
     assert "WebDoug" in r.text
     assert "INVENTORY" in r.text
 
-    r = client.post("/action", data={"command": "look"})
+    r = client.post("/action", data={"command": "inventory"})
     assert r.status_code == 200
     assert "log-entry" in r.text
     assert 'hx-swap-oob="true"' in r.text  # char sheet/minimap OOB updates
@@ -73,7 +73,7 @@ def test_no_duplicate_content_length_headers(client):
     assert raw.count("content-length") <= 1
     assert raw.count("set-cookie") <= 1
 
-    r = client.post("/action", data={"command": "look"})
+    r = client.post("/action", data={"command": "inventory"})
     raw = [k.decode().lower() for k, _ in r.headers.raw]
     assert raw.count("content-length") <= 1
 
@@ -88,7 +88,7 @@ def test_session_id_is_stable_across_requests(client):
 
     client.get("/")
     client.post("/crawler", data={"name": "Sticky", "concept": "a creature of habit"})
-    client.post("/action", data={"command": "look"})
+    client.post("/action", data={"command": "inventory"})
     assert client.cookies.get("tc_session") == first
 
     # and the run stays attached to that same session
@@ -116,8 +116,14 @@ def test_model_authored_names_are_never_injected_as_markup(client, game):
     body = client.get("/game").text
     assert "<img src=x" not in body, "raw markup from an item name reached the page"
     assert "</script><b>" not in body, "an item flavor broke out of its context"
-    # and the client never builds markup from those names
-    assert "innerHTML" not in body
+    # Names are not handed to the page as data at all any more: the suggestions are
+    # server-rendered HTML, so Jinja escapes them like every other piece of text.
+    assert "item-names" not in body, "item names should not be embedded in the page"
+
+    rows = client.get("/complete", params={"command": "use @Blade"}).text
+    assert "Blade" in rows, "the suggestion should still be offered"
+    assert "<img src=x" not in rows, "an item name reached the page as markup"
+    assert "&lt;img src=x" in rows, "the name should arrive escaped"
 
 
 def test_minimap_escapes_any_text_it_emits():
@@ -128,3 +134,128 @@ def test_minimap_escapes_any_text_it_emits():
 
     src = inspect.getsource(svgrender)
     assert "xml_escape" in src, "minimap must escape text before it is marked safe"
+
+
+def test_the_page_says_why_you_are_waiting(game, session_id):
+    """Generation announces itself as it starts, so a slow turn reads as work rather
+    than a hang. The server knows which turns generate — it checked the cache first."""
+    from app.engine import progress
+    from app.runs import service
+    from app.security import limits
+
+    q = progress.subscribe(session_id)
+    limits.begin_action(session_id)
+    try:
+        progress.emit(limits.current_session(), "area")
+        progress.emit(limits.current_session(), "room_art")
+    finally:
+        limits.end_action()
+
+    assert q.get_nowait() == progress.WORDING["area"]
+    assert q.get_nowait() == progress.WORDING["room_art"]
+    progress.unsubscribe(session_id, q)
+    assert progress.listeners(session_id) == 0
+
+
+def test_nothing_is_said_outside_a_players_action(game, session_id):
+    """Warming content at startup is not somebody waiting."""
+    from app.engine import progress
+    from app.security import limits
+
+    q = progress.subscribe(session_id)
+    limits.end_action()
+    progress.emit(limits.current_session(), "area")
+    assert q.empty()
+    progress.unsubscribe(session_id, q)
+
+
+def test_one_players_wait_is_not_shown_to_another(game, session_id):
+    from app.engine import progress
+
+    mine = progress.subscribe(session_id)
+    theirs = progress.subscribe("someone-else")
+    progress.emit(session_id, "enemy")
+    assert not mine.empty() and theirs.empty()
+    progress.unsubscribe(session_id, mine)
+    progress.unsubscribe("someone-else", theirs)
+
+
+def test_the_room_art_is_served_as_an_image(client):
+    """It shipped once as JSON inside an HTML attribute, and JSON's own double quotes cut
+    the attribute short at the first colour, so every room rendered black. It is a PNG
+    from its own URL now: nothing about the picture is embedded in the page at all."""
+    import io
+    import re
+
+    from PIL import Image
+
+    client.post("/crawler", data={"name": "Doug", "concept": "a plumber"})
+    html = client.get("/game").text
+
+    m = re.search(r'<img class="scene-art" src="(/art/\d+\.png)"', html)
+    assert m, "no room picture on the page"
+    assert "scene-data" not in html and "data-palette" not in html
+
+    r = client.get(m.group(1))
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert "immutable" in r.headers.get("cache-control", "")
+    img = Image.open(io.BytesIO(r.content))
+    assert img.size == (64, 48)
+    assert len(img.getcolors()) <= 16
+
+
+def test_an_undrawn_room_is_not_requested_as_an_image(client):
+    r = client.get("/art/999999.png")
+    assert r.status_code == 404
+
+
+# --- waiting on the model ----------------------------------------------------
+
+def test_making_a_crawler_says_what_it_is_doing(game, session_id):
+    """The longest wait in the game, and it is not a turn — the indicator missed it
+    entirely at first because it was only wired to the action endpoint."""
+    from app.engine import progress
+    from app.runs import service
+    from app.security import limits
+
+    q = progress.subscribe(session_id)
+    limits.begin_action(session_id)
+    try:
+        service.create_run(session_id, "Doug", "a plumber")
+    finally:
+        limits.end_action()
+
+    said = []
+    while not q.empty():
+        said.append(q.get_nowait())
+    progress.unsubscribe(session_id, q)
+
+    assert progress.WORDING["class"] in said
+    assert progress.WORDING["area"] in said
+    assert progress.WORDING["room_art"] in said
+
+
+def test_a_turn_that_generates_nothing_says_nothing(game, session_id):
+    """Silence is the point: most turns are instant and must not flash a wait message."""
+    from app.engine import progress, resolver
+    from app.runs import service
+    from app.security import limits
+
+    run_id = service.create_run(session_id, "Doug", "a plumber")
+    q = progress.subscribe(session_id)          # after everything is cached
+    limits.begin_action(session_id)
+    try:
+        resolver.handle_action(run_id, "inventory", session_id=session_id, ip="1.1.1.1")
+    finally:
+        limits.end_action()
+    assert q.empty()
+    progress.unsubscribe(session_id, q)
+
+
+def test_creation_over_htmx_redirects_instead_of_swapping(client):
+    """htmx would follow a 303 and swap a whole page into a corner of itself."""
+    r = client.post("/crawler", data={"name": "Doug", "concept": "a plumber"},
+                    headers={"HX-Request": "true"})
+    assert r.status_code == 204
+    assert r.headers["HX-Redirect"] == "/game"

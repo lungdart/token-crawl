@@ -139,3 +139,36 @@ def test_a_floor_that_fails_to_warm_does_not_stop_the_game(game, monkeypatch):
 
     monkeypatch.setattr(services, "ensure_response_bank", boom)
     services.warm_response_banks([1])  # must not raise
+
+
+# --- room art ----------------------------------------------------------------
+
+def test_room_art_is_drawn_once_and_cached(game):
+    from app.models.scene import COLORS, HEIGHT, WIDTH
+
+    row = services.ensure_area(1, 0, 0)
+    art = services.ensure_room_art(1, row["id"], "a corridor of raw rock")
+    drew = len([c for c in game.calls if c[0] == "room_art"])
+
+    assert len(art.rows) == HEIGHT
+    assert all(len(r) == WIDTH * 2 for r in art.rows)
+    assert 2 <= len(art.palette) <= COLORS
+    assert all(c.startswith("#") and len(c) == 7 for c in art.palette)
+
+    again = services.ensure_room_art(1, row["id"], "a corridor of raw rock")
+    assert len([c for c in game.calls if c[0] == "room_art"]) == drew
+    assert again.rows == art.rows, "every crawler sees the same room"
+
+
+def test_a_room_that_cannot_be_drawn_is_still_playable(game, session_id, monkeypatch):
+    """The picture is the one thing that may fail without taking the room with it."""
+    from app.engine import movement
+
+    def boom(*a, **k):
+        raise RuntimeError("image model down")
+
+    monkeypatch.setattr(services, "ensure_room_art", boom)
+    run_id = service.create_run(session_id, "Doug", "a plumber")
+    ctx = RunContext.load(run_id)
+    assert ctx.area().description
+    assert repo.ready_art(ctx.run["area_id"]) is None

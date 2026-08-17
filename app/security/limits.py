@@ -110,6 +110,11 @@ def end_action() -> None:
     _current.charged = False
 
 
+def current_session() -> str | None:
+    """Whose action is running on this thread, if any."""
+    return getattr(_current, "session", None)
+
+
 def charge_generation() -> float:
     """Called immediately before a model call. Waits for this action's generation slot,
     the first time only. Returns the seconds waited."""

@@ -9,6 +9,7 @@ log = logs.get(__name__)
 
 _DELTA = {"n": (0, 1), "s": (0, -1), "e": (1, 0), "w": (-1, 0)}
 _DIRWORD = {"n": "north", "s": "south", "e": "east", "w": "west"}
+OPPOSITE = {"n": "s", "s": "n", "e": "w", "w": "e"}
 
 
 def death_echoes(ctx: RunContext) -> list[str]:
@@ -23,27 +24,31 @@ def death_echoes(ctx: RunContext) -> list[str]:
     ]
 
 
+def coords(row) -> str:
+    """How a room is named now: where it is. Two crawlers comparing notes are talking
+    about the same place."""
+    return f"Floor {row['floor_id']} \u00b7 {row['x']}, {row['y']}"
+
+
 def describe_area(ctx: RunContext) -> None:
+    """Arriving somewhere.
+
+    The room's description and what is in it are NOT logged: they belong to the room, not
+    to the sequence of things that happened, and the page shows them in their own panel
+    fed straight from the cache. Only events go in the log — what a crawler did, what
+    answered, who died here before.
+    """
     row = ctx.area_row()
-    content = ctx.area()
-    ctx.say(f"— {content.name} —", "system")
-    ctx.say(content.description)
     for echo in death_echoes(ctx):
         ctx.say(echo, "death")
-    for e in ctx.visible_entities():
-        ctx.say(e.brief)
-    if row["has_stairs_down"]:
-        ctx.say("Stairs lead down from here.", "system")
     if row["is_safe_room"]:
         _describe_safe_room(ctx, row)
-    dirs = [_DIRWORD[d] for d in content.exits.open_dirs()]
-    ctx.say(f"Exits: {', '.join(dirs) if dirs else 'none'}.", "system")
 
 
 def _describe_safe_room(ctx: RunContext, row) -> None:
     """Safe rooms are shop + inn: nothing hostile, free full recovery, stock to buy."""
     try:
-        room = services.ensure_safe_room(ctx.run["floor_id"], row["id"], ctx.area().name)
+        room = services.ensure_safe_room(ctx.run["floor_id"], row["id"], coords(row))
     except Exception:
         log.exception("safe room generation failed for area %s", row["id"])
         ctx.say(logs.FAULT + " The shop here didn't load; you can still rest.", "system")
@@ -79,19 +84,47 @@ def ensure_area_enemies(ctx: RunContext) -> None:
     for e in ctx.visible_entities():
         if e.kind == "enemy":
             services.ensure_enemy(ctx.run["floor_id"], e.key, e.name,
-                                  content.name, content.description)
+                                  coords(ctx.area_row()), content.description)
+
+
+def ensure_area_art(ctx: RunContext) -> None:
+    """First sight of a room draws it. A failure here costs the picture, not the room —
+    the description still arrives and the crawler plays on."""
+    row = ctx.area_row()
+    try:
+        services.ensure_room_art(
+            ctx.run["floor_id"], row["id"], ctx.area().description,
+            has_stairs=bool(row["has_stairs_down"]), is_safe_room=bool(row["is_safe_room"]))
+    except Exception:
+        log.exception("room art failed for area %s", row["id"])
 
 
 def enter_area(ctx: RunContext, x: int, y: int) -> None:
     row = services.ensure_area(ctx.run["floor_id"], x, y)
     ctx.run["area_id"] = row["id"]
     ctx.run["combat"] = None  # enemy instances reset when you leave
+    # Cleared here and set by do_move, so arriving any other way (stairs, a new run)
+    # leaves no way back to retreat to.
+    ctx.run["stats"]["came_from"] = None
     ctx.save_area_state(ctx.area_state())  # marks visited
     ensure_area_enemies(ctx)
+    ensure_area_art(ctx)
     describe_area(ctx)
 
 
-def do_move(ctx: RunContext, direction: str) -> None:
+def hostiles_here(ctx: RunContext) -> bool:
+    return any(e.kind == "enemy" for e in ctx.visible_entities())
+
+
+def do_move(ctx: RunContext, direction: str, *, retreating: bool = False) -> None:
+    # Arriving still never provokes anything — you get to look at what is in the room and
+    # decide. But you cannot simply stroll past it: leaving means retreating, and
+    # retreating can fail. Checked before the exit, because the reason you are not going
+    # is the thing in the room, not the wall. A retreat has already won its roll, so it
+    # is the one move that passes.
+    if hostiles_here(ctx) and not retreating:
+        ctx.say_line("blocked_by_enemies", "combat")
+        return
     content = ctx.area()
     if not getattr(content.exits, direction):
         ctx.say_line("blocked_direction")
@@ -100,11 +133,16 @@ def do_move(ctx: RunContext, direction: str) -> None:
     x, y = row["x"] + _DELTA[direction][0], row["y"] + _DELTA[direction][1]
     ctx.say(f"You go {_DIRWORD[direction]}.")
     enter_area(ctx, x, y)
+    # Remembered so retreating goes back the way you came rather than deeper in.
+    ctx.run["stats"]["came_from"] = OPPOSITE[direction]
 
 
 def do_descend(ctx: RunContext) -> None:
     """The stairs always lead somewhere. There is no bottom and no way to finish — a run
     ends when the crawler dies. The floor below is written on the first descent into it."""
+    if hostiles_here(ctx):
+        ctx.say_line("blocked_by_enemies", "combat")
+        return
     row = ctx.area_row()
     if not row["has_stairs_down"]:
         ctx.say_line("no_stairs_here")

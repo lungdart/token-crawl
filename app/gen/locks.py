@@ -10,6 +10,8 @@ import time
 from typing import Callable
 
 from app import db
+from app.engine import progress
+from app.security import limits
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +63,9 @@ def get_or_generate(
             return cached
         owns = claim() or reclaim_stale(STALE_SECONDS)
         if owns:
+            # The cache has been checked and missed and we hold the claim: this player is
+            # about to wait on a model. Tell them why, before it starts.
+            progress.emit(limits.current_session(), kind)
             try:
                 return generate_and_store()
             except Exception:

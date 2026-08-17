@@ -7,7 +7,7 @@ import re
 from app.config import settings
 from app.gen import llm
 from app.models.actions import (
-    Attack, CanonicalAction, Descend, EquipItem, Flee, Inventory, Look, Move,
+    Attack, CanonicalAction, Descend, EquipItem, Flee, Inventory, Move,
     NovelAction, ParsedAction, Rejected, ShopBuy, ShopSell, Take, UnequipItem,
     UseAbility, UseItem,
 )
@@ -66,15 +66,11 @@ def fast_parse(text: str, entity_keys: list[str], in_shop: bool,
     inventory_names = inventory_names or []
     ability_names = ability_names or []
     t = text.strip().lower()
-    if not t:
-        return Look(type="look")
     if t in _DIR:
         return Move(type="move", direction=_DIR[t])
     m = re.match(r"^(?:go|move|walk|head)\s+(\w+)$", t)
     if m and m.group(1) in _DIR:
         return Move(type="move", direction=_DIR[m.group(1)])
-    if t in ("look", "l", "look around", "examine room", "where am i"):
-        return Look(type="look")
     if t in ("down", "descend", "go down", "take stairs", "stairs"):
         return Descend(type="descend")
     if t in ("i", "inv", "inventory", "bag"):

@@ -39,6 +39,8 @@ def _handle_action(run_id: int, raw_text: str, *, session_id: str, ip: str) -> R
     limits.begin_action(session_id)
 
     raw_text = raw_text.replace("\x00", "").strip()[: settings.max_action_chars]
+    if not raw_text:
+        return ctx  # nothing typed; never worth a model call
     content = ctx.area()
     entities = ctx.visible_entities()
     inv = ctx.inventory()
@@ -84,8 +86,6 @@ def _dispatch(ctx: RunContext, action, session_id: str) -> None:
         movement.do_move(ctx, action.direction)  # arriving never provokes anything
     elif t == "descend":
         movement.do_descend(ctx)
-    elif t == "look":
-        movement.describe_area(ctx)
     elif t == "attack":
         combat.do_attack(ctx, action.target_key)
     elif t == "use_ability":
@@ -208,7 +208,7 @@ def _grant_item(ctx: RunContext, ruling, target_key: str, entity) -> None:
         f"{name} — taken out of the room by a crawler. {spec.hint}",
         "common", "claimed from the dungeon itself",
         name_key=f"claimed_{ctx.run['area_id']}_{target_key}",
-        context=f"{content.name}: {content.description}",
+        context=content.description,
     )
     item = repo.get_item(item_id)
     ctx.add_item(item_id)

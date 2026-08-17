@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import asyncio
+import queue
+from collections.abc import AsyncIterable
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.templating import Jinja2Templates
 
 from app import db, logs
 from app.config import settings
-from app.engine import combat, resolver
+from app.engine import combat, movement, progress, resolver
 from app.engine.state import RunContext
+from app.gen.art import to_png
 from app.runs import service
 from app.runs import session as websession
 from app.security import limits
@@ -19,6 +25,9 @@ from app.world import repo
 log = logs.get(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+_DIRWORD = {"n": "north", "s": "south", "e": "east", "w": "west"}
 
 
 def _game_context(request: Request, run_id: int) -> dict:
@@ -40,9 +49,26 @@ def _game_context(request: Request, run_id: int) -> dict:
 
     order = {"rare": 0, "uncommon": 1, "common": 2, "junk": 3}
     inv.sort(key=lambda e: (not e["equipped"], order.get(e["item"].rarity, 9), e["item"].name))
+
+    # The room's description and what is in it come from the world cache, not from the
+    # log: they describe where the crawler IS, and stay put while the log scrolls.
+    content = ctx.area()
+    highlights = [{"kind": e.kind, "name": e.name, "brief": e.brief}
+                  for e in ctx.visible_entities()]
+    if area_row["has_stairs_down"]:
+        highlights.append({"kind": "stairs", "name": "Stairs down",
+                           "brief": "A way down to the next floor."})
+    exits = [_DIRWORD[d] for d in content.exits.open_dirs()]
+
     return {
         "request": request,
         "run": ctx.run,
+        "description": content.description,
+        "highlights": highlights,
+        "exits": exits,
+        "coords": movement.coords(area_row),
+        "area_id": area_row["id"],
+        "has_art": repo.ready_art(area_row["id"]) is not None,
         "cls": cls,
         "abilities": combat.known_abilities(ctx),
         "inventory": inv,
@@ -51,7 +77,6 @@ def _game_context(request: Request, run_id: int) -> dict:
         "shop": shop,
         "resource": ctx.resource,
         "rooms": ctx.rooms_explored(),
-        "item_names": [e["item"].name for e in inv],
         "rank": service.rank_of(run_id) if ctx.run["status"] != "alive" else None,
     }
 
@@ -69,6 +94,21 @@ def index(request: Request):
     page = templates.TemplateResponse(request, "index.html", {
         "max_concept": settings.max_concept_chars,
         "leaderboard": service.leaderboard(10),
+        "error": request.query_params.get("error"),
+    })
+    return websession.remember(page, sid)
+
+
+def _creation_failed(request: Request, sid: str, message: str):
+    """Same page back with the reason on it. htmx asked without navigating, so tell it to
+    reload rather than swapping a whole document into a corner of itself."""
+    if request.headers.get("HX-Request"):
+        return websession.remember(
+            Response(status_code=204, headers={"HX-Redirect": f"/?error={quote(message)}"}), sid)
+    page = templates.TemplateResponse(request, "index.html", {
+        "max_concept": settings.max_concept_chars,
+        "leaderboard": service.leaderboard(10),
+        "error": message,
     })
     return websession.remember(page, sid)
 
@@ -82,21 +122,17 @@ def create_crawler(request: Request, name: str = Form(...), concept: str = Form(
         limits.begin_action(sid)
         service.create_run(sid, name.strip()[:40], concept.strip()[: settings.max_concept_chars])
     except limits.RateLimited:
-        page = templates.TemplateResponse(request, "index.html", {
-            "max_concept": settings.max_concept_chars,
-            "leaderboard": service.leaderboard(10),
-            "error": "Too many attempts. Wait a moment and try again.",
-        })
-        return websession.remember(page, sid)
+        return _creation_failed(request, sid, "Too many attempts. Wait a moment and try again.")
     except Exception:
         log.exception("failed to create a run for session %s", sid)
-        page = templates.TemplateResponse(request, "index.html", {
-            "max_concept": settings.max_concept_chars,
-            "leaderboard": service.leaderboard(10),
-            "error": "Something broke while opening the dungeon. Try again.",
-        })
-        return websession.remember(page, sid)
-    return websession.remember(RedirectResponse("/game", status_code=303), sid)
+        return _creation_failed(request, sid, "Something broke while opening the dungeon. Try again.")
+    # htmx follows a 303 with another XHR and would swap the game page into this one;
+    # HX-Redirect tells it to navigate instead. A plain form post still gets the 303.
+    if request.headers.get("HX-Request"):
+        done = Response(status_code=204, headers={"HX-Redirect": "/game"})
+    else:
+        done = RedirectResponse("/game", status_code=303)
+    return websession.remember(done, sid)
 
 
 @router.get("/game", response_class=HTMLResponse)
@@ -125,6 +161,70 @@ def action(request: Request, command: str = Form("")):
     gc["echo_command"] = command
     page = templates.TemplateResponse(request, "partials/action_response.html", gc)
     return websession.remember(page, sid)
+
+
+@router.get("/complete", response_class=HTMLResponse)
+def complete(request: Request, command: str = ""):
+    """Item-name suggestions for the `@` reference, rendered by the server.
+
+    The names are written by a model and cached into the shared world, so they are
+    somebody else's text arriving on your page. Rendering them here means Jinja escapes
+    them like every other piece of text in the app, and nothing crosses to JavaScript as
+    data. Empty when there is nothing to suggest, so the dropdown hides itself.
+    """
+    sid = websession.session_id(request)
+    run_id = _active_run_id(sid) if sid else None
+    if not run_id or "@" not in command:
+        return HTMLResponse("")
+    fragment = command.rsplit("@", 1)[1].strip().lower()
+    names = [e["item"].name for e in RunContext.load(run_id).inventory()]
+    hits = [n for n in names if fragment in n.lower()][:6]
+    return templates.TemplateResponse(request, "partials/autocomplete.html", {"hits": hits})
+
+
+@router.get("/art/{area_id}.png")
+def room_art(area_id: int):
+    """A room's picture, as a picture.
+
+    World content: the same image for every crawler, and it never changes once drawn —
+    so it is safe to tell browsers to keep it forever. A room that has not been drawn
+    yet is not served at all; the page shows an unlit frame instead of asking for this.
+    """
+    art = repo.ready_art(area_id)
+    if art is None:
+        return Response(status_code=404)
+    return Response(
+        to_png(art), media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.get("/events", response_class=EventSourceResponse)
+async def events(request: Request) -> AsyncIterable[ServerSentEvent]:
+    """One long-lived stream per player, carrying why they are waiting.
+
+    Kept separate from /action on purpose: the action keeps returning one HTML response
+    that htmx swaps as it always has, and this only carries status. Streaming the action
+    itself would mean re-implementing htmx's out-of-band swapping by hand.
+    """
+    sid = websession.session_id(request)
+    q = progress.subscribe(sid)
+    try:
+        while not await request.is_disconnected():
+            drained = False
+            while True:
+                try:
+                    # raw_data: plain text on the wire, not a JSON string the page must unwrap
+                    yield ServerSentEvent(raw_data=q.get_nowait(), event="status")
+                    drained = True
+                except queue.Empty:
+                    break
+            if not drained:
+                # A comment keeps an idle connection from being closed under us.
+                yield ServerSentEvent(comment="waiting")
+            await asyncio.sleep(0.2)
+    finally:
+        progress.unsubscribe(sid, q)
 
 
 @router.get("/inventory", response_class=HTMLResponse)
