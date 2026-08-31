@@ -19,9 +19,10 @@
 
     {% include "partials/room.html" %}
 
+    {# Clearing the box and scrolling the log is done in script below rather than with
+       hx-on, whose double-colon form is newer than the htmx this app pins. #}
     <form id="prompt" hx-post="/action" hx-target="#log" hx-swap="beforeend"
-          hx-disabled-elt="find input" hx-indicator="#spinner"
-          hx-on::after-request="this.reset(); document.getElementById('log').scrollTop = 1e9">
+          hx-disabled-elt="find input" hx-indicator="#spinner">
       <span class="caret">&#10148;</span>
       <input id="command" name="command" autocomplete="off" autofocus maxlength="300"
              placeholder="what do you do?"
@@ -87,6 +88,15 @@
   });
   input.addEventListener('blur', () => setTimeout(close, 120));
   document.body.addEventListener('htmx:afterSwap', () => { active = -1; });
+
+  // After a turn: empty the box and keep the log at the newest entry.
+  document.getElementById('prompt').addEventListener('htmx:afterRequest', (e) => {
+    if (e.detail && e.detail.requestConfig && e.detail.requestConfig.verb === 'get') return;
+    input.value = '';
+    close();
+    const log = document.getElementById('log');
+    if (log) log.scrollTop = log.scrollHeight;
+  });
 })();
 document.getElementById('log').scrollTop = 1e9;
 </script>

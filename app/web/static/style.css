@@ -206,6 +206,8 @@ code { color: var(--ember); font-family: var(--mono); }
 .side > div { background: var(--stone); border: 1px solid var(--edge);
               padding: 14px; margin-bottom: 18px; }
 .cls { color: var(--faded); font-family: var(--serif); font-style: italic; font-size: 14px; }
+/* Says there is more to read without saying it out loud. */
+.has-tip { cursor: help; text-decoration: underline dotted var(--edge); text-underline-offset: 3px; }
 
 .hpbar, .resbar {
   position: relative; height: 16px; background: var(--stone2);

@@ -1,4 +1,4 @@
-<h3>{{ run.name }} <span class="cls">{{ cls.name }}</span></h3>
+<h3>{{ run.name }} <span class="cls has-tip" title="{{ cls.flavor }}">{{ cls.name }}</span></h3>
 <div class="hpbar"><div class="hpfill" style="width: {{ (100 * run.hp / run.max_hp) | round(0, 'floor') | int }}%"></div>
   <span class="hplabel">HP {{ run.hp }}/{{ run.max_hp }}</span></div>
 {% if resource %}
@@ -13,6 +13,6 @@
 </table>
 <div class="abilities">
   {% for a in abilities %}
-  <div class="ability" title="{{ a.flavor }}">✦ {{ a.name }}{% if a.resource_cost and resource %} <span class="cost">{{ a.resource_cost }} {{ resource.name }}</span>{% endif %}{% if a.hp_cost %} <span class="cost">{{ a.hp_cost }} HP</span>{% endif %}{% if run.stats.cooldowns.get(a.name, 0) > 0 %} <span class="cd">({{ run.stats.cooldowns[a.name] }})</span>{% endif %}</div>
+  <div class="ability has-tip" title="{{ a.flavor }}">✦ {{ a.name }}{% if a.resource_cost and resource %} <span class="cost">{{ a.resource_cost }} {{ resource.name }}</span>{% endif %}{% if a.hp_cost %} <span class="cost">{{ a.hp_cost }} HP</span>{% endif %}{% if run.stats.cooldowns.get(a.name, 0) > 0 %} <span class="cd">({{ run.stats.cooldowns[a.name] }})</span>{% endif %}</div>
   {% endfor %}
 </div>
