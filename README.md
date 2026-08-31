@@ -45,13 +45,14 @@ Open http://127.0.0.1:8000, describe your crawler, and type actions:
 ## Models (OpenRouter)
 
 Everything goes through [OpenRouter](https://openrouter.ai)'s OpenAI-compatible
-endpoint, in two tiers set in `app/config.py` (override with `PARSER_MODEL` /
-`GEN_MODEL` in `.env`):
+endpoint, in three tiers set in `app/config.py` (override with `PARSER_MODEL` /
+`GEN_MODEL` / `IMAGE_MODEL` in `.env`):
 
 | Tier | Default | Price in/out per Mtok | Why |
 |---|---|---|---|
 | **A — parser / gatekeeper** | `google/gemini-2.5-flash-lite` | $0.10 / $0.40 | High volume, latency-critical. All 5 of its endpoints support structured outputs, and it has no mandatory reasoning stage. ~$0.10 per 1,000 LLM-routed actions — and the keyword fast path handles ~80% of commands for free. |
 | **B — world gen / adjudication** | `google/gemini-2.5-flash` | $0.30 / $2.50 | Quality-sensitive: this content is cached forever. All 7 endpoints support structured outputs. A full 7×7 floor lands well under $1. |
+| **C — room art** | `google/gemini-2.5-flash-image` | ~$0.03 / room | The model draws a full-colour picture; code shrinks it to 64×48 and quantizes it to sixteen colours chosen from that picture, with Floyd-Steinberg dithering. Asking a text model to emit the pixels directly does not work at this size (`scripts/art_bakeoff.py`). Paid once ever, like everything else. |
 
 Because a whole floor costs less than a coffee, **pick tier B on prose, not price**:
 
