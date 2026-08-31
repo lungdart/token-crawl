@@ -370,14 +370,16 @@ These two are load-bearing together: if entry is safe *and* escape is free, noth
 ever hurt a player who doesn't choose to engage. Contested flight is what makes walking
 into a bad room a real risk.
 
-### 6. Keep the five effect verbs — and tell the model it's constrained by them
+### 6. Keep the six effect verbs — and tell the model it's constrained by them
 
 **Decided.** The mechanical vocabulary stays small and fixed: `damage`, `heal`,
-`damage_over_time`, `stat_modifier`, `on_hit_trigger`. No open-ended state verb, no
-expanded list. Every spell, item, enemy power, and adjudicated outcome composes from these.
+`damage_over_time`, `stat_modifier`, `resource_change`, `on_hit_trigger`. No open-ended
+state verb, no expanded list. Every spell, item, enemy power, and adjudicated outcome
+composes from these. (`resource_change` is the one addition since this was written —
+decision 9 introduced it along with the class resource, which amends the list here.)
 
 **The schema already enforces this** — the discriminated union means the model physically
-cannot emit a sixth effect type.
+cannot emit a seventh effect type.
 
 **The gap is narration outrunning mechanics.** Nothing currently stops an adjudication from
 writing "the goblin is now your ally" while returning an empty effects list. The text claims
@@ -386,7 +388,7 @@ itself.
 
 **Fix (prompt-side, not schema-side):** state the vocabulary and its boundary explicitly in
 the generation prompts, and require that narration never assert an outcome the effects don't
-produce. When a player attempts something outside the five verbs, the ruling must either map
+produce. When a player attempts something outside the six verbs, the ruling must either map
 it onto what *is* expressible, or return the `impossible` verdict the adjudicator already
 supports. It must not fake it.
 
