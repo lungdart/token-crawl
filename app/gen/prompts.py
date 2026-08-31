@@ -4,9 +4,29 @@ All generation calls share one stable prefix ordering (system text -> floor plan
 cache_control) so the floor plan is cache-read after the first call. Player text only ever
 appears inside a delimited untrusted block.
 """
+import annotated_types
+from pydantic import BaseModel
+
 from app.models import scale
+from app.models.character import CrawlerClass
 from app.models.effects import EFFECT_VERBS
 from app.models.floor_brief import FloorBrief
+
+
+def _range(model: type[BaseModel], field: str) -> tuple[int, int]:
+    """The (min, max) length a list field accepts, read off the model itself.
+
+    The prompt has to ask for a count the schema will actually take: a model that follows
+    prose asking for more than the schema allows either gets refused by constrained decoding
+    or fails validation and burns a retry. Reading the bounds here means the two cannot drift.
+    """
+    lo, hi = 0, 0
+    for c in model.model_fields[field].metadata:
+        if isinstance(c, annotated_types.MinLen):
+            lo = c.min_length
+        elif isinstance(c, annotated_types.MaxLen):
+            hi = c.max_length
+    return lo, hi
 
 GEN_SYSTEM = """You are the world engine for a text dungeon crawler. You author CONTENT — never
 code, never rules. Whatever you write is cached permanently and served identically to every
@@ -227,6 +247,8 @@ def floor_plan_prompt(depth: int, above_title: str, above_theme: str) -> str:
 # --- character ---------------------------------------------------------------
 
 def class_prompt(concept: str) -> str:
+    ab_lo, ab_hi = _range(CrawlerClass, "starting_abilities")
+    it_lo, it_hi = _range(CrawlerClass, "starting_items")
     return (
         "A crawler describes themselves. Build their class around it: honor what they meant, but the "
         "dungeon assigns the name and it need not flatter them.\n\n"
@@ -234,8 +256,9 @@ def class_prompt(concept: str) -> str:
         "Set their starting stats yourself against that reference. Give them a resource if the concept "
         "wants one — name it whatever suits (MP, Rage, Charge, Sanity) and say whether it starts full "
         "or builds from empty — or leave it null for a class that runs purely on cooldowns.\n"
-        "1-3 starting abilities, built from the six effect verbs. An ability may cost the resource, "
-        "cost HP, have a cooldown, or any combination. 1-3 starting item briefs.\n\n"
+        f"{ab_lo}-{ab_hi} starting abilities, built from the six effect verbs. An ability may cost "
+        f"the resource, cost HP, have a cooldown, or any combination. {it_lo}-{it_hi} starting item "
+        "briefs.\n\n"
         f"Their words:\n{untrusted(concept)}"
     )
 
