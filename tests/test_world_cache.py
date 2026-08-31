@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 
+from app import db
 from app.engine.state import RunContext
-from app.gen import services
+from app.gen import locks, services
 from app.runs import service
 from app.world import floors, repo
 
@@ -19,6 +20,37 @@ def test_concurrent_race_generates_exactly_once(game):
         rows = list(pool.map(lambda _: services.ensure_area(1, 2, 3), range(8)))
     assert len({r["id"] for r in rows}) == 1
     assert len([c for c in game.calls if c[0] == "area"]) == 1
+
+
+def _plant_crashed_claim(floor_id, x, y, age_seconds):
+    """A generation that took the claim age_seconds ago and never came back."""
+    repo.claim_area(floor_id, x, y)
+    with db.tx() as conn:
+        conn.execute(
+            "UPDATE areas SET claimed_at=datetime('now', ?) WHERE floor_id=? AND x=? AND y=?",
+            (f"-{age_seconds} seconds", floor_id, x, y),
+        )
+
+
+def test_claim_row_reclaims_on_the_window_it_is_given(game):
+    _plant_crashed_claim(1, 9, 9, 5)
+    where, params = "floor_id=? AND x=? AND y=?", (1, 9, 9)
+    with db.tx() as conn:
+        assert not locks.claim_row(conn, "areas", where, params, 60), "5s old is fresh at 60s"
+    with db.tx() as conn:
+        assert locks.claim_row(conn, "areas", where, params, 2), "5s old is stale at 2s"
+
+
+def test_a_shorter_stale_window_frees_a_crashed_generation_sooner(game, monkeypatch):
+    """STALE_SECONDS is the timeout, not decoration: it used to be discarded by every
+    caller and the SQL held every crashed claim for a hardcoded 60 seconds."""
+    monkeypatch.setattr(locks, "STALE_SECONDS", 2)
+    monkeypatch.setattr(locks, "WAIT_TIMEOUT", 0.5)  # fail fast rather than poll for 30s
+    _plant_crashed_claim(1, 9, 9, 5)
+
+    row = services.ensure_area(1, 9, 9)  # GenerationPending if the dead claim still holds
+
+    assert row["status"] == "ready"
 
 
 def test_exit_reciprocity_enforced(game):

@@ -83,12 +83,13 @@ def get_or_generate(
     raise GenerationPending(f"{kind}:{key} still generating elsewhere")
 
 
-def claim_row(conn, table: str, where: str, params: tuple) -> bool:
-    """Reclaim helper: take over a row whose claim is stale or failed."""
+def claim_row(conn, table: str, where: str, params: tuple, stale_seconds: int) -> bool:
+    """Reclaim helper: take over a row whose claim is older than stale_seconds, or failed."""
+    interval = f"-{int(stale_seconds)} seconds"   # int(): never a caller-shaped SQL interval
     cur = conn.execute(
         f"""UPDATE {table} SET status='generating', claimed_at=datetime('now')
             WHERE {where} AND (status='failed'
-                  OR (status='generating' AND claimed_at < datetime('now', '-60 seconds')))""",
-        params,
+                  OR (status='generating' AND claimed_at < datetime('now', ?)))""",
+        (*params, interval),
     )
     return cur.rowcount > 0

@@ -29,9 +29,9 @@ from app.world import floors, repo
 log = logs.get(__name__)
 
 
-def _reclaim(table: str, where: str, params: tuple) -> bool:
+def _reclaim(table: str, where: str, params: tuple, stale_seconds: int) -> bool:
     with db.tx() as conn:
-        return claim_row(conn, table, where, params)
+        return claim_row(conn, table, where, params, stale_seconds)
 
 
 def _session(floor_id: int) -> str:
@@ -71,7 +71,7 @@ def ensure_floor(floor_id: int):
         kind="floor_plan", key=(floor_id,),
         select_ready=lambda: repo.ready_floor(floor_id),
         claim=lambda: repo.claim_floor(floor_id),
-        reclaim_stale=lambda _s: _reclaim("floors", "id=?", (floor_id,)),
+        reclaim_stale=lambda s: _reclaim("floors", "id=?", (floor_id,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("floors", "id=?", (floor_id,)),
     )
@@ -101,7 +101,7 @@ def ensure_room_art(floor_id: int, area_id: int, description: str,
         kind="room_art", key=(area_id,),
         select_ready=lambda: repo.ready_art(area_id),
         claim=lambda: repo.claim_art(area_id),
-        reclaim_stale=lambda _s: _reclaim("visual_assets", "kind='room' AND ref_id=?", (area_id,)),
+        reclaim_stale=lambda s: _reclaim("visual_assets", "kind='room' AND ref_id=?", (area_id,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("visual_assets", "kind='room' AND ref_id=?", (area_id,)),
     )
@@ -128,7 +128,7 @@ def ensure_response_bank(floor_id: int) -> ResponseBank:
         kind="response_bank", key=(floor_id,),
         select_ready=lambda: repo.ready_bank(floor_id),
         claim=lambda: repo.claim_bank(floor_id),
-        reclaim_stale=lambda _s: _reclaim("response_banks", "floor_id=?", (floor_id,)),
+        reclaim_stale=lambda s: _reclaim("response_banks", "floor_id=?", (floor_id,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("response_banks", "floor_id=?", (floor_id,)),
     )[0]
@@ -194,7 +194,7 @@ def ensure_area(floor_id: int, x: int, y: int):
         kind="area", key=(floor_id, x, y),
         select_ready=lambda: repo.ready_area(floor_id, x, y),
         claim=lambda: repo.claim_area(floor_id, x, y),
-        reclaim_stale=lambda _s: _reclaim("areas", "floor_id=? AND x=? AND y=?", (floor_id, x, y)),
+        reclaim_stale=lambda s: _reclaim("areas", "floor_id=? AND x=? AND y=?", (floor_id, x, y), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("areas", "floor_id=? AND x=? AND y=?", (floor_id, x, y)),
     )
@@ -221,7 +221,8 @@ def ensure_enemy(floor_id: int, name_key: str, display_name: str,
         kind="enemy", key=(floor_id, name_key),
         select_ready=lambda: repo.ready_enemy(floor_id, name_key),
         claim=lambda: repo.claim_enemy(floor_id, name_key),
-        reclaim_stale=lambda _s: _reclaim("enemy_types", "floor_id=? AND name_key=?", (floor_id, name_key)),
+        reclaim_stale=lambda s: _reclaim(
+            "enemy_types", "floor_id=? AND name_key=?", (floor_id, name_key), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("enemy_types", "floor_id=? AND name_key=?", (floor_id, name_key)),
     )[0]
@@ -249,7 +250,7 @@ def ensure_drop_slots(floor_id: int, name_key: str, enemy_name: str, enemy_flavo
         kind="drop_table", key=(etid,),
         select_ready=lambda: repo.ready_drop_slots(etid),
         claim=lambda: repo.claim_drop_table(etid),
-        reclaim_stale=lambda _s: _reclaim("drop_tables", "enemy_type_id=?", (etid,)),
+        reclaim_stale=lambda s: _reclaim("drop_tables", "enemy_type_id=?", (etid,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("drop_tables", "enemy_type_id=?", (etid,)),
     )
@@ -330,7 +331,7 @@ def ensure_safe_room(floor_id: int, area_id: int, area_name: str) -> SafeRoom:
         kind="safe_room", key=(area_id,),
         select_ready=lambda: repo.ready_safe_room(area_id),
         claim=lambda: repo.claim_safe_room(area_id),
-        reclaim_stale=lambda _s: _reclaim("safe_rooms", "area_id=?", (area_id,)),
+        reclaim_stale=lambda s: _reclaim("safe_rooms", "area_id=?", (area_id,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("safe_rooms", "area_id=?", (area_id,)),
     )[0]
@@ -378,7 +379,7 @@ def ensure_class(concept: str, floor_id: int = 1) -> tuple[int, CrawlerClass]:
         kind="class", key=(key,),
         select_ready=lambda: repo.ready_class(key),
         claim=lambda: repo.claim_class(key),
-        reclaim_stale=lambda _s: _reclaim("classes", "concept_key=?", (key,)),
+        reclaim_stale=lambda s: _reclaim("classes", "concept_key=?", (key,), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("classes", "concept_key=?", (key,)),
     )[0]
@@ -417,7 +418,7 @@ def ensure_level_up(class_id: int, level: int, floor_id: int = 1) -> LevelUp:
         kind="level_up", key=(class_id, level),
         select_ready=lambda: repo.ready_level_up(class_id, level),
         claim=lambda: repo.claim_level_up(class_id, level),
-        reclaim_stale=lambda _s: _reclaim("level_ups", "class_id=? AND level=?", (class_id, level)),
+        reclaim_stale=lambda s: _reclaim("level_ups", "class_id=? AND level=?", (class_id, level), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed("level_ups", "class_id=? AND level=?", (class_id, level)),
     )[0]
@@ -446,9 +447,9 @@ def ensure_ruling(floor_id: int, area_id: int, area_desc: str, target_key: str,
         kind="adjudication", key=(area_id, target_key, verb_key),
         select_ready=lambda: repo.ready_ruling(area_id, target_key, verb_key),
         claim=lambda: repo.claim_ruling(area_id, target_key, verb_key),
-        reclaim_stale=lambda _s: _reclaim(
+        reclaim_stale=lambda s: _reclaim(
             "interaction_rulings", "area_id=? AND target_key=? AND verb_key=?",
-            (area_id, target_key, verb_key)),
+            (area_id, target_key, verb_key), s),
         generate_and_store=generate_and_store,
         mark_failed=lambda: repo.mark_failed(
             "interaction_rulings", "area_id=? AND target_key=? AND verb_key=?",
