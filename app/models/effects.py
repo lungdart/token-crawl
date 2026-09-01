@@ -14,12 +14,18 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
-DICE_RE = re.compile(r"^(\d{1,2})d(\d{1,3})([+-]\d{1,3})?$|^(\d{1,3})$")
+# The dice grammar, written once. Three things consume it — the matcher below, the
+# DiceExpr schema pattern, and app/engine/dice.py, which imports DICE_RE — and decision 4
+# makes dice parsing an integrity boundary: a schema that accepts a string the roller
+# throws on is a mid-combat crash. Widening this string widens all three together.
+DICE_PATTERN = r"^(?P<count>\d{1,2})d(?P<sides>\d{1,3})(?P<mod>[+-]\d{1,3})?$|^(?P<flat>\d{1,3})$"
+
+DICE_RE = re.compile(DICE_PATTERN)
 
 DiceExpr = Annotated[
     str,
     Field(
-        pattern=r"^\d{1,2}d\d{1,3}([+-]\d{1,3})?$|^\d{1,3}$",
+        pattern=DICE_PATTERN,
         description="Dice notation like '2d6+1', or a plain integer like '3'.",
     ),
 ]
@@ -88,8 +94,8 @@ def dice_max(expr: str) -> int:
     m = DICE_RE.match(expr)
     if not m:
         raise ValueError(f"bad dice expr: {expr!r}")
-    if m.group(4) is not None:
-        return int(m.group(4))
-    n, sides = int(m.group(1)), int(m.group(2))
-    mod = int(m.group(3) or 0)
+    if m.group("flat") is not None:
+        return int(m.group("flat"))
+    n, sides = int(m.group("count")), int(m.group("sides"))
+    mod = int(m.group("mod") or 0)
     return n * sides + mod
