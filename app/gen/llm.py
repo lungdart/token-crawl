@@ -57,7 +57,6 @@ class LLMBackend(Protocol):
         output_model: type[M],
         max_tokens: int | None = None,
         session_id: str | None = None,
-        reasoning: bool = True,
     ) -> M: ...
 
     def draw(self, *, kind: str, model: str, prompt: str) -> bytes: ...
@@ -119,7 +118,7 @@ class OpenRouterBackend:
         }
 
     def generate(self, *, kind, model, system_blocks, user, output_model,
-                 max_tokens=None, session_id=None, reasoning=True):
+                 max_tokens=None, session_id=None):
         messages = [
             {"role": "system", "content": system_blocks},
             {"role": "user", "content": user},
@@ -135,11 +134,6 @@ class OpenRouterBackend:
             # Return real cost + cache stats in the usage object.
             "usage": {"include": True},
         }
-        if not reasoning:
-            # Some models think before answering and count that thinking against the
-            # output budget. On a task with no reasoning in it — drawing a grid — that
-            # burns the whole budget and truncates the answer, at ten times the price.
-            body["reasoning"] = {"enabled": False}
         if session_id:
             # Pin a burst of related calls (e.g. generating one floor) to the same
             # upstream, so the cached floor-brief prefix stays warm across them.
@@ -253,7 +247,7 @@ class FixtureBackend:
         self.calls: list[tuple[str, str]] = []  # (kind, user) — inspected by tests
 
     def generate(self, *, kind, model, system_blocks, user, output_model,
-                 max_tokens=None, session_id=None, reasoning=True):
+                 max_tokens=None, session_id=None):
         self.calls.append((kind, user))
         data = self._lookup(kind, user) or _generic_fixture(kind, user)
         if data is None:

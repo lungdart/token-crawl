@@ -60,6 +60,8 @@ def test_request_shape_and_success(backend):
     assert body["provider"]["require_parameters"] is True
     # ask for real cost back
     assert body["usage"]["include"] is True
+    # nothing turns reasoning off; the key is simply never sent
+    assert "reasoning" not in body
     # cache breakpoint on the static floor brief survives into the system message
     assert body["messages"][0]["content"][1]["cache_control"] == {"type": "ephemeral"}
 
