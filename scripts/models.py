@@ -85,29 +85,23 @@ def compare(slugs: list[str], kind: str) -> None:
         db.init(str(Path(tmp) / "compare.sqlite3"))
         floors.load_floors(settings.floors_dir)
         brief = floors.get_brief(1)
-        backend = llm.OpenRouterBackend()
+        # The configured backend, so LLM_BACKEND=fixture drives this offline for free.
+        backend = llm.get_backend()
 
+        x, y = 3, 3
         if kind == "area":
             model_cls = AreaContent
             user = prompts.area_prompt(
-                3, 3, is_landing=True, has_stairs=False, is_shop=False, dist_from_landing=0,
-                neighbors={}, forced_exits={}, blocked_dirs=[],
+                x, y, is_landing=True, has_stairs=False, is_safe_room=False, distance=0,
+                neighbors={}, forced_exits={},
                 enemy_density=brief.target_enemy_density,
             )
-            validate = None
         else:
             model_cls = EnemyStatBlock
-            user = prompts.enemy_prompt("shank_goblin", "Shank Goblin", "The Collapsed Junction")
-            b = brief.power_budget
-
-            def validate(block):
-                errs = []
-                for stat, (lo, hi) in (("hp", b.enemy_hp), ("attack", b.enemy_attack),
-                                       ("xp", b.enemy_xp)):
-                    v = getattr(block, stat)
-                    if not (lo <= v <= hi):
-                        errs.append(f"{stat}={v} outside [{lo},{hi}]")
-                return errs
+            user = prompts.enemy_prompt(
+                "shank_goblin", "Shank Goblin", f"Floor {brief.floor} · {x}, {y}",
+                "A collapsed junction of cut stone, half-blocked by fallen rock.",
+            )
 
         for slug in slugs:
             print("\n" + "=" * 100)
@@ -119,7 +113,7 @@ def compare(slugs: list[str], kind: str) -> None:
                 obj = backend.generate(
                     kind=kind, model=slug,
                     system_blocks=prompts.floor_prefix(brief),
-                    user=user, output_model=model_cls, validate=validate,
+                    user=user, output_model=model_cls,
                     session_id="compare",
                 )
             except Exception as exc:
@@ -130,7 +124,7 @@ def compare(slugs: list[str], kind: str) -> None:
             print(f"  ${_spend() - before:.5f}   {elapsed:5.1f}s   {attempts} call(s) "
                   f"{'(needed a retry)' if attempts > 1 else ''}\n")
             if kind == "area":
-                print(f"  NAME: {obj.name}")
+                print(f"  ROOM: Floor {brief.floor} · {x}, {y}")
                 print(f"  {obj.description}\n")
                 for e in obj.entities:
                     print(f"    [{e.kind}] {e.name} ({e.key}) — {e.brief}")
