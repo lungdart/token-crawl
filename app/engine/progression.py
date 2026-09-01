@@ -54,3 +54,4 @@ def level_up(ctx: RunContext, new_level: int) -> bool:
     ctx.say(f"Level {new_level}. {gains.announcement}", "system")
     if gains.new_ability:
         ctx.say(f"You learn {gains.new_ability.name} — {gains.new_ability.flavor}", "system")
+    return True
