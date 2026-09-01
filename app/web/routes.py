@@ -172,7 +172,7 @@ def complete(request: Request, command: str = ""):
     them like every other piece of text in the app, and nothing crosses to JavaScript as
     data. Empty when there is nothing to suggest, so the dropdown hides itself.
     """
-    sid = websession.session_id(request)
+    sid = request.cookies.get(websession.COOKIE, "")
     run_id = _active_run_id(sid) if sid else None
     if not run_id or "@" not in command:
         return HTMLResponse("")
@@ -207,7 +207,12 @@ async def events(request: Request) -> AsyncIterable[ServerSentEvent]:
     that htmx swaps as it always has, and this only carries status. Streaming the action
     itself would mean re-implementing htmx's out-of-band swapping by hand.
     """
-    sid = websession.session_id(request)
+    # Read the cookie, never mint one: this endpoint returns no cookie, so a session made
+    # here would be a row nobody can ever reach again. Same for /complete, which the page
+    # polls on every keystroke. Nothing to say to a caller without one.
+    sid = request.cookies.get(websession.COOKIE, "")
+    if not sid:
+        return
     q = progress.subscribe(sid)
     try:
         while not await request.is_disconnected():

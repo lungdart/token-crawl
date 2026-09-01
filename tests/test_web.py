@@ -71,6 +71,78 @@ def test_inventory_search(client):
     body, names = search("quiescent")
     assert names == ["Zephyr Loupe"], f"searching a flavor returned {names}"
 
+async def _open_events(client) -> int:
+    """Connect to /events with no cookie, let it stream, then hang up. Returns the status."""
+    import anyio
+
+    scope = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+        "method": "GET", "path": "/events", "raw_path": b"/events", "root_path": "",
+        "scheme": "http", "query_string": b"", "headers": [(b"host", b"test")],
+        "client": ("1.2.3.4", 1), "server": ("test", 80),
+    }
+    sent = []
+
+    async def receive():
+        await anyio.sleep_forever()
+
+    async def send(message):
+        sent.append(message)
+
+    with anyio.move_on_after(0.5):
+        await client.app(scope, receive, send)
+
+    assert any(m["type"] == "http.response.body" for m in sent), "the stream never started"
+    assert not any(k == b"set-cookie" for k, _ in sent[0]["headers"]), \
+        "/events hands back no cookie, so any session it makes is unreachable"
+    return sent[0]["status"]
+
+
+async def test_polling_endpoints_do_not_mint_a_session(client):
+    """/complete is polled on every keystroke and /events is opened by every page. Both
+    resolved the caller with session_id(), which INSERTs a `sessions` row when the cookie
+    is missing — and neither hands the cookie back, so a cookieless caller left a fresh
+    orphan row behind on every single request. They only read the cookie now, the way
+    /inventory does."""
+    from app import db
+
+    from app.models.entities import Item
+    from app.world import repo
+
+    def sessions():
+        return db.get().execute("SELECT COUNT(*) c FROM sessions").fetchone()["c"]
+
+    client.cookies.clear()
+    before = sessions()
+
+    for _ in range(3):
+        r = client.get("/complete", params={"command": "use @x"})
+        assert r.status_code == 200
+        assert r.text == "", "a caller with no session has nothing to suggest"
+        client.cookies.clear()
+
+    # /events never ends, and TestClient buffers a response whole, so it is driven as raw
+    # ASGI and cut off once the stream is up.
+    assert await _open_events(client) == 200
+    client.cookies.clear()
+
+    assert sessions() == before, "a cookieless poll left a sessions row behind"
+
+    # ...and a caller that does have a session still gets its suggestions.
+    client.post("/crawler", data={"name": "Typer", "concept": "a scribe"})
+    seeded = Item(name="Zephyr Loupe", flavor="A jeweller lens ground from quiescent glass.",
+                  rarity="common", slots=["hand"])
+    item_id = repo.insert_item(1, "zephyr_loupe", seeded)
+    run_id = db.get().execute("SELECT id FROM runs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    with db.tx() as conn:
+        conn.execute("INSERT INTO run_inventory (run_id, item_id, qty) VALUES (?, ?, 1)",
+                     (run_id, item_id))
+
+    r = client.get("/complete", params={"command": "use @loupe"})
+    assert r.status_code == 200
+    assert "Zephyr Loupe" in r.text, "autocomplete stopped answering a real session"
+
+
 def test_leaderboard_page(client):
     r = client.get("/leaderboard")
     assert r.status_code == 200
