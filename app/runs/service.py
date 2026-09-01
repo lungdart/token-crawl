@@ -94,20 +94,27 @@ def active_run(session_id: str) -> int | None:
     return row["id"] if row else None
 
 
-def _board_rows(limit: int):
-    """Leaderboard order: floor -> rooms explored -> xp -> kills (design review #7a).
+# Leaderboard order: floor -> rooms explored -> xp -> kills (design review #7a).
+#
+# Rooms explored rewards thorough play over lucky stair placement — with stairs scattered,
+# two crawlers can both reach floor 3 having seen 8 rooms or 60.
+#
+# Written once and shared by the board and by rank_of: two copies of this can drift, and a
+# crawler is then told they placed 4th on a board that lists them 2nd.
+_BOARD_ORDER = """r.floor_id DESC,
+                  (SELECT COUNT(*) FROM run_area_state ras WHERE ras.run_id = r.id) DESC,
+                  r.xp DESC, r.kills DESC"""
 
-    Rooms explored rewards thorough play over lucky stair placement — with stairs scattered,
-    two crawlers can both reach floor 3 having seen 8 rooms or 60.
-    """
+
+def _board_rows(limit: int):
     return db.get().execute(
-        """SELECT r.id, r.name, c.class_json, r.status, r.floor_id, r.level, r.kills, r.xp,
-                  r.death_cause,
-                  (SELECT COUNT(*) FROM run_area_state ras WHERE ras.run_id = r.id) AS rooms
-           FROM runs r JOIN classes c ON c.id = r.class_id
-           WHERE r.status = 'dead'
-           ORDER BY r.floor_id DESC, rooms DESC, r.xp DESC, r.kills DESC
-           LIMIT ?""",
+        f"""SELECT r.id, r.name, c.class_json, r.status, r.floor_id, r.level, r.kills, r.xp,
+                   r.death_cause,
+                   (SELECT COUNT(*) FROM run_area_state ras WHERE ras.run_id = r.id) AS rooms
+            FROM runs r JOIN classes c ON c.id = r.class_id
+            WHERE r.status = 'dead'
+            ORDER BY {_BOARD_ORDER}
+            LIMIT ?""",
         (limit,),
     ).fetchall()
 
@@ -126,13 +133,10 @@ def leaderboard(limit: int = 20) -> list[dict]:
 
 def rank_of(run_id: int) -> int | None:
     row = db.get().execute(
-        """WITH board AS (
-             SELECT r.id, ROW_NUMBER() OVER (
-               ORDER BY r.floor_id DESC,
-                        (SELECT COUNT(*) FROM run_area_state ras WHERE ras.run_id = r.id) DESC,
-                        r.xp DESC, r.kills DESC) AS rn
-             FROM runs r WHERE r.status = 'dead')
-           SELECT rn FROM board WHERE id=?""",
+        f"""WITH board AS (
+              SELECT r.id, ROW_NUMBER() OVER (ORDER BY {_BOARD_ORDER}) AS rn
+              FROM runs r WHERE r.status = 'dead')
+            SELECT rn FROM board WHERE id=?""",
         (run_id,),
     ).fetchone()
     return row["rn"] if row else None

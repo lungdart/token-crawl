@@ -210,13 +210,43 @@ def test_floor_difficulty_comes_from_its_depth(game, session_id):
         assert floors.get_brief(depth).levels.min == scale.floor_levels(depth)[0]
 
 
-def test_leaderboard_orders_by_floor_then_rooms(game, session_id):
-    run_id = service.create_run(session_id, "Board", "a record keeper")
-    with db.tx() as conn:
-        conn.execute("UPDATE runs SET status='dead', death_cause='testing' WHERE id=?", (run_id,))
+def test_leaderboard_orders_by_floor_then_rooms_then_xp_then_kills(game, session_id):
+    """Design review #7a's ranking, in that order — and the rank a dead crawler is shown on
+    their death panel is the row they actually occupy on the board."""
+    from app.gen import services as gen
+
+    floors.get_brief(2)     # somewhere deeper for the first crawler to have died on
+
+    def bury(name, *, floor=1, rooms=1, xp=0, kills=0):
+        run_id = service.create_run(session_id, name, "a record keeper")
+        # creation explores the landing, so every crawler already has one room
+        extra = [gen.ensure_area(1, 5 + i, 5)["id"] for i in range(rooms - 1)]
+        with db.tx() as conn:
+            conn.execute(
+                """UPDATE runs SET status='dead', death_cause='testing',
+                                   floor_id=?, xp=?, kills=? WHERE id=?""",
+                (floor, xp, kills, run_id),
+            )
+            conn.executemany(
+                "INSERT INTO run_area_state (run_id, area_id) VALUES (?, ?)",
+                [(run_id, area_id) for area_id in extra],
+            )
+        return run_id
+
+    # each of these wins on exactly one key and loses on every earlier one
+    expected = [
+        bury("Deep", floor=2),
+        bury("Wide", rooms=4),
+        bury("Learned", xp=500),
+        bury("Bloody", kills=9),
+    ]
+
     board = service.leaderboard()
-    assert board and board[0]["name"] == "Board"
-    assert "rooms" in board[0] and board[0]["rooms"] >= 1
+    assert [row["name"] for row in board] == ["Deep", "Wide", "Learned", "Bloody"]
+    assert board[1]["rooms"] == 4
+
+    for position, run_id in enumerate(expected, start=1):
+        assert service.rank_of(run_id) == position, "death panel disagrees with the board"
 
 
 def test_you_cannot_walk_past_something_hostile(game, session_id):
