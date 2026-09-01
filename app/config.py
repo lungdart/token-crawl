@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Tier C — room art. The model draws a full-colour picture; code shrinks it to
     # 64x48 and quantizes it to sixteen colours chosen from that picture, with
     # Floyd-Steinberg dithering. Asking a text model to emit the pixels directly does
-    # not work at this size — see scripts/art_bakeoff.py for the comparison that
+    # not work at this size — see scripts/palette_bakeoff.py for the comparison that
     # settled it. ~$0.03 a room, paid once ever.
     image_model: str = "google/gemini-2.5-flash-image"
 
