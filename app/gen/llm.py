@@ -396,8 +396,6 @@ def _generic_fixture(kind: str, user: str) -> dict | None:
                          "Nothing in this dungeon is listening for that.",
                          "The tunnel does not respond to that."],
             "rate_limited": two("Slow down.", "Give it a moment."),
-            "generation_paused": two("The way ahead has not been carved yet.",
-                                     "Nothing new is being opened up right now."),
         }
     if kind == "parse":
         return None  # parsing has its own keyword fast path; no generic fixture

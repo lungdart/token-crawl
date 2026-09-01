@@ -78,7 +78,6 @@ _PLAIN_FALLBACK = {
     "flee_failed": "You fail to get away.",
     "rejected": "That is not something you can do here.",
     "rate_limited": "Slow down.",
-    "generation_paused": "No new ground is being opened up right now.",
 }
 
 

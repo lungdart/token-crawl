@@ -36,4 +36,3 @@ class ResponseBank(BaseModel):
                     "place the dungeon speaks to the person rather than the character.",
     )
     rate_limited: list[str] = Lines          # acting too fast
-    generation_paused: list[str] = Lines     # spend cap reached; explored world still playable
