@@ -28,6 +28,15 @@ class AreaEntity(BaseModel):
     brief: str = Field(max_length=200, description="One-line description shown in the area text.")
 
 
+# The direction vocabulary, written once beside the fields it has to agree with: the grid
+# step, the way back, and the English word. Everything that moves, draws or describes a
+# passage reads these — a second copy with one sign flipped opens a one-way door, and
+# because exits are decided at generation time that door is cached forever.
+DELTA: dict[str, tuple[int, int]] = {"n": (0, 1), "s": (0, -1), "e": (1, 0), "w": (-1, 0)}
+OPPOSITE: dict[str, str] = {"n": "s", "s": "n", "e": "w", "w": "e"}
+DIRWORD: dict[str, str] = {"n": "north", "s": "south", "e": "east", "w": "west"}
+
+
 class Exits(BaseModel):
     n: bool = False
     s: bool = False
@@ -35,7 +44,7 @@ class Exits(BaseModel):
     w: bool = False
 
     def open_dirs(self) -> list[str]:
-        return [d for d in ("n", "s", "e", "w") if getattr(self, d)]
+        return [d for d in DELTA if getattr(self, d)]
 
 
 class AreaContent(BaseModel):

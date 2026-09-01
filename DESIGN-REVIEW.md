@@ -1,6 +1,6 @@
 # Design review — decisions and status
 
-**Status: all 14 decisions implemented.** 137 offline tests + 8 live tests are collected.
+**Status: all 14 decisions implemented.** 141 offline tests + 8 live tests are collected.
 The offline ones pass. The live ones are only *counted* — `addopts` deselects them and
 they need an API key, so nothing here claims they pass; two of their bodies are exercised
 offline against the fixture backend in `tests/test_meta_live_bodies.py`.

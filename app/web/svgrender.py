@@ -5,9 +5,11 @@ from __future__ import annotations
 from xml.sax.saxutils import escape as xml_escape
 
 from app import db
+from app.models.entities import DELTA
 
 CELL = 26
 PAD = 6
+TICK = 2  # how far an exit tick reaches either side of the wall it pierces
 
 
 def minimap_svg(run: dict) -> str:
@@ -45,12 +47,13 @@ def minimap_svg(run: dict) -> str:
         parts.append(f"<rect x='{x0 + 2}' y='{y0 + 2}' width='{CELL - 4}' height='{CELL - 4}' rx='3' class='{cls}'/>")
         exits = json.loads(r["content_json"])["exits"] if r["content_json"] else {}
         cx, cy = x0 + CELL // 2, y0 + CELL // 2
-        for d, (lx1, ly1, lx2, ly2) in {
-            "n": (cx, y0 + 2, cx, y0 - 2), "s": (cx, y0 + CELL - 2, cx, y0 + CELL + 2),
-            "e": (x0 + CELL - 2, cy, x0 + CELL + 2, cy), "w": (x0 + 2, cy, x0 - 2, cy),
-        }.items():
-            if exits.get(d):
-                parts.append(f"<line x1='{lx1}' y1='{ly1}' x2='{lx2}' y2='{ly2}' class='exit'/>")
+        for d, (dx, dy) in DELTA.items():
+            if not exits.get(d):
+                continue
+            dy = -dy  # north is up, so the grid's +y is the screen's -y
+            lx1, ly1 = cx + dx * (CELL // 2 - TICK), cy + dy * (CELL // 2 - TICK)
+            lx2, ly2 = cx + dx * (CELL // 2 + TICK), cy + dy * (CELL // 2 + TICK)
+            parts.append(f"<line x1='{lx1}' y1='{ly1}' x2='{lx2}' y2='{ly2}' class='exit'/>")
         glyph = None
         if r["echo"]:
             glyph = "☠"  # skull

@@ -4,12 +4,9 @@ from __future__ import annotations
 from app import db, logs
 from app.engine.state import RunContext
 from app.gen import services
+from app.models.entities import DELTA, DIRWORD, OPPOSITE
 
 log = logs.get(__name__)
-
-_DELTA = {"n": (0, 1), "s": (0, -1), "e": (1, 0), "w": (-1, 0)}
-_DIRWORD = {"n": "north", "s": "south", "e": "east", "w": "west"}
-OPPOSITE = {"n": "s", "s": "n", "e": "w", "w": "e"}
 
 
 def death_echoes(ctx: RunContext) -> list[str]:
@@ -130,8 +127,8 @@ def do_move(ctx: RunContext, direction: str, *, retreating: bool = False) -> Non
         ctx.say_line("blocked_direction")
         return
     row = ctx.area_row()
-    x, y = row["x"] + _DELTA[direction][0], row["y"] + _DELTA[direction][1]
-    ctx.say(f"You go {_DIRWORD[direction]}.")
+    x, y = row["x"] + DELTA[direction][0], row["y"] + DELTA[direction][1]
+    ctx.say(f"You go {DIRWORD[direction]}.")
     enter_area(ctx, x, y)
     # Remembered so retreating goes back the way you came rather than deeper in.
     ctx.run["stats"]["came_from"] = OPPOSITE[direction]

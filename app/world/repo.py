@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from app import db
 from app.models.character import CrawlerClass, LevelUp
-from app.models.entities import AreaContent, EnemyStatBlock, Item, SafeRoom
+from app.models.entities import DELTA, OPPOSITE, AreaContent, EnemyStatBlock, Item, SafeRoom
 from app.models.responses import ResponseBank
 from app.models.scene import RoomArt
 from app.models.rulings import InteractionRuling
@@ -70,11 +70,11 @@ def neighbor_summaries(floor_id: int, x: int, y: int) -> dict[str, dict]:
     Rooms have no names, so a neighbour is described by the first sentence of what it
     actually looks like — which is better context for matching character anyway."""
     out = {}
-    for d, (dx, dy) in {"n": (0, 1), "s": (0, -1), "e": (1, 0), "w": (-1, 0)}.items():
+    for d, (dx, dy) in DELTA.items():
         row = ready_area(floor_id, x + dx, y + dy)
         if row:
             c = area_content(row)
-            back = {"n": "s", "s": "n", "e": "w", "w": "e"}[d]
+            back = OPPOSITE[d]
             gist = c.description.split(". ")[0][:120]
             out[d] = {"gist": gist, "open_toward_us": getattr(c.exits, back)}
     return out

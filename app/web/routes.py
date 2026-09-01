@@ -16,6 +16,7 @@ from app.config import settings
 from app.engine import combat, movement, progress, resolver
 from app.engine.state import RunContext
 from app.gen.art import to_png
+from app.models.entities import DIRWORD
 from app.runs import service
 from app.runs import session as websession
 from app.security import limits
@@ -25,9 +26,6 @@ from app.world import repo
 log = logs.get(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-
-
-_DIRWORD = {"n": "north", "s": "south", "e": "east", "w": "west"}
 
 
 def _game_context(request: Request, run_id: int) -> dict:
@@ -58,7 +56,7 @@ def _game_context(request: Request, run_id: int) -> dict:
     if area_row["has_stairs_down"]:
         highlights.append({"kind": "stairs", "name": "Stairs down",
                            "brief": "A way down to the next floor."})
-    exits = [_DIRWORD[d] for d in content.exits.open_dirs()]
+    exits = [DIRWORD[d] for d in content.exits.open_dirs()]
 
     return {
         "request": request,
