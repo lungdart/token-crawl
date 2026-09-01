@@ -13,6 +13,14 @@ from app.models.effects import EFFECT_VERBS
 from app.models.floor_brief import FloorBrief
 
 
+_NUMBER_WORDS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
+
+# The prompts state how many effect verbs there are in prose, in several places. Written out
+# it drifts: the list has been amended once already and the count was left behind. Spelled
+# from the list itself, adding a verb corrects every sentence that counts them.
+VERB_COUNT = _NUMBER_WORDS[len(EFFECT_VERBS)]
+
+
 def _range(model: type[BaseModel], field: str) -> tuple[int, int]:
     """The (min, max) length a list field accepts, read off the model itself.
 
@@ -28,7 +36,7 @@ def _range(model: type[BaseModel], field: str) -> tuple[int, int]:
             hi = c.max_length
     return lo, hi
 
-GEN_SYSTEM = """You are the world engine for a text dungeon crawler. You author CONTENT — never
+GEN_SYSTEM = f"""You are the world engine for a text dungeon crawler. You author CONTENT — never
 code, never rules. Whatever you write is cached permanently and served identically to every
 future crawler, so make it coherent, specific, and worth discovering.
 
@@ -41,12 +49,12 @@ COHERENCE. Everything you author must fit the floor it is on and the room it is 
 belongs to its surroundings; an item belongs to whatever dropped it. Never place something
 whose nature contradicts its setting.
 
-MECHANICS. The engine understands exactly six effect verbs and nothing else:
+MECHANICS. The engine understands exactly {VERB_COUNT} effect verbs and nothing else:
   damage, heal, damage_over_time, stat_modifier, resource_change, on_hit_trigger.
 Every mechanical outcome must be expressed as a composition of those. This is a hard limit,
 not a style note. NEVER write narration that claims an outcome the effects don't produce — do
 not say something is charmed, disarmed, frozen, or turned to your side unless the effects list
-actually does it. If an outcome cannot be expressed with those six verbs, either express the
+actually does it. If an outcome cannot be expressed with those {VERB_COUNT} verbs, either express the
 nearest thing that can be, or say plainly that it doesn't work. A description that contradicts
 the engine is worse than a boring one.
 
@@ -130,8 +138,7 @@ def enemy_prompt(name_key: str, name: str, area_name: str, area_description: str
         f"Generate the stat block for enemy type '{name_key}' ({name}).\n"
         f"First encountered in '{area_name}':\n{area_description[:600]}\n\n"
         "It must belong in that room — its body, behavior, and abilities should follow from where "
-        "it lives. Give it personality in 'flavor'. 0-2 abilities, each built from the six effect "
-        "verbs."
+        f"it lives. Give it personality in 'flavor'. 0-2 abilities, each built from the {VERB_COUNT} effect verbs."
     )
 
 
@@ -256,7 +263,7 @@ def class_prompt(concept: str) -> str:
         "Set their starting stats yourself against that reference. Give them a resource if the concept "
         "wants one — name it whatever suits (MP, Rage, Charge, Sanity) and say whether it starts full "
         "or builds from empty — or leave it null for a class that runs purely on cooldowns.\n"
-        f"{ab_lo}-{ab_hi} starting abilities, built from the six effect verbs. An ability may cost "
+        f"{ab_lo}-{ab_hi} starting abilities, built from the {VERB_COUNT} effect verbs. An ability may cost "
         f"the resource, cost HP, have a cooldown, or any combination. {it_lo}-{it_hi} starting item "
         "briefs.\n\n"
         f"Their words:\n{untrusted(concept)}"
@@ -294,7 +301,7 @@ def adjudication_prompt(area_desc: str, target_key: str, target_brief: str,
         "verb on the same target, so write it as a general rule rather than a one-off.\n"
         "Decide: does it work automatically, require a stat check (attack/defense/speed with a "
         "difficulty), or is it simply impossible here? Give success and failure narration, and effects "
-        "for each — remembering the six verbs are all the engine has. If the interesting outcome can't "
+        f"for each — remembering the {VERB_COUNT} verbs are all the engine has. If the interesting outcome can't "
         "be expressed with them, say so honestly through 'impossible' rather than describing something "
         "that won't happen.\n"
         "If they are trying to take a physical object, that is allowed: set grants_item_spec. Heavy or "
