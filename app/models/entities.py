@@ -12,10 +12,8 @@ Rarity = Literal["junk", "common", "uncommon", "rare"]
 # picking r/l would be arbitrary and produce two swords both claiming the right hand.
 SlotName = Literal["hand", "head", "body", "legs", "feet", "accessory"]
 
-# Physical slot instances and how many of each exist.
-SLOT_CAPACITY: dict[str, int] = {
-    "hand": 2, "head": 1, "body": 1, "legs": 1, "feet": 1, "accessory": 2,
-}
+# Physical slot instances. Each is capacity 1, so this list IS the capacity per logical
+# slot — the engine reads it and nothing else, so there is no second count to disagree.
 SLOT_INSTANCES: dict[str, list[str]] = {
     "hand": ["r_hand", "l_hand"],
     "head": ["head"], "body": ["body"], "legs": ["legs"], "feet": ["feet"],
