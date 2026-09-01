@@ -23,29 +23,53 @@ def test_index_and_character_creation_flow(client):
 def test_inventory_search(client):
     """The search box lives inside #inventory-panel and targets it, so the route has to
     return the whole panel. Returning only the list swapped the input the player was
-    typing into out of the DOM — the box worked once and then vanished."""
+    typing into out of the DOM — the box worked once and then vanished.
+
+    Searching is matched against a seeded item so the assertions can name what should and
+    should not come back: the query has to narrow the list, and it has to reach the item's
+    flavor as well as its name."""
     import re
+
+    from app import db
+    from app.models.entities import Item
+    from app.world import repo
 
     client.post("/crawler", data={"name": "Searchy", "concept": "an archivist"})
 
-    r = client.get("/inventory", params={"q": ""})
-    assert r.status_code == 200
-    names = re.findall(r'<span class="inv-name">([^<×]+)', r.text)
-    assert names, "the fixture crawler should start with something to search for"
-    needle = names[0].strip().split()[-1]
+    seeded = Item(name="Zephyr Loupe", flavor="A jeweller lens ground from quiescent glass.",
+                  rarity="common", slots=["hand"])
+    item_id = repo.insert_item(1, "zephyr_loupe", seeded)
+    run_id = db.get().execute("SELECT id FROM runs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    with db.tx() as conn:
+        conn.execute("INSERT INTO run_inventory (run_id, item_id, qty) VALUES (?, ?, 1)",
+                     (run_id, item_id))
 
-    r = client.get("/inventory", params={"q": needle})
-    assert r.status_code == 200
-    assert 'class="inv-search"' in r.text, "the search box was swapped out of the page"
-    assert f'value="{needle}"' in r.text, "the typed query was not echoed back"
-    assert needle in r.text
+    def search(q):
+        r = client.get("/inventory", params={"q": q})
+        assert r.status_code == 200
+        assert 'class="inv-search"' in r.text, "the search box was swapped out of the page"
+        assert f'value="{q}"' in r.text, "the typed query was not echoed back"
+        names = [n.strip() for n in re.findall(r'<span class="inv-name">([^<×]+)', r.text)]
+        return r.text, names
 
-    r = client.get("/inventory", params={"q": "zzz-no-match"})
-    assert r.status_code == 200
-    assert 'class="inv-search"' in r.text, "a fruitless search must leave the box behind"
-    assert 'value="zzz-no-match"' in r.text
-    assert "— nothing —" in r.text
-    assert needle not in r.text
+    body, everything = search("")
+    assert "Zephyr Loupe" in everything
+    assert [n for n in everything if n != "Zephyr Loupe"], \
+        "the fixture crawler should carry something else, or nothing is being filtered out"
+
+    # by name: the seeded item, and only it
+    body, names = search("loupe")
+    assert names == ["Zephyr Loupe"], f"searching a name returned {names}"
+
+    # by nothing: no rows at all
+    body, names = search("zzz-no-match")
+    assert names == [], f"a fruitless search still rendered {names}"
+    assert "— nothing —" in body
+
+    # by flavor: "quiescent" is in no item's name, so only the flavor arm can find it
+    assert not any("quiescent" in n.lower() for n in everything)
+    body, names = search("quiescent")
+    assert names == ["Zephyr Loupe"], f"searching a flavor returned {names}"
 
 def test_leaderboard_page(client):
     r = client.get("/leaderboard")
