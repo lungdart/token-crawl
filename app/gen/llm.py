@@ -293,8 +293,7 @@ def _generic_fixture(kind: str, user: str) -> dict | None:
             "slug": "deeper-workings",
             "title": "The Deeper Workings",
             "theme": "## Theme\n\nThe tool marks give way to something older that was cut, not "
-                     "dug.\n\n## Layout\n\nWide galleries broken by collapses.\n\n"
-                     "## Denizens\n\nThings that were left down here on purpose.\n\n"
+                     "dug.\n\n## Denizens\n\nThings that were left down here on purpose.\n\n"
                      "## Set Pieces\n\nA shaft with no bottom anyone has found.\n\n"
                      "## Loot\n\nTools made for hands that are not quite hands.",
         }

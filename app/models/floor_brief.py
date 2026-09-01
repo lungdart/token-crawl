@@ -70,7 +70,7 @@ class GeneratedFloor(BaseModel):
     theme: str = Field(
         max_length=3000,
         description="The floor plan itself, in markdown, under the headings: Theme, "
-                    "Layout, Denizens, Set Pieces, Loot. Describe the PLACE — what it is "
+                    "Denizens, Set Pieces, Loot. Describe the PLACE — what it is "
                     "like to be there, what lives in it, what a crawler finds. Every room, "
                     "creature and item on this floor is written later from this, so it must "
                     "be specific enough to build a floor from and open enough to fill many "
