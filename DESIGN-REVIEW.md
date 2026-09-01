@@ -1,6 +1,9 @@
 # Design review — decisions and status
 
-**Status: all 14 decisions implemented.** 133 offline tests + 8 live tests pass.
+**Status: all 14 decisions implemented.** 135 offline tests + 8 live tests are collected.
+The offline ones pass. The live ones are only *counted* — `addopts` deselects them and
+they need an API key, so nothing here claims they pass; two of their bodies are exercised
+offline against the fixture backend in `tests/test_meta_live_bodies.py`.
 
 Running notes from reviewing the build against the actual intent.
 Terminology: the per-floor `.md` file is a **floor plan**. (I had been calling it a

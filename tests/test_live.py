@@ -29,15 +29,16 @@ def _spend():
 
 
 def test_live_landing_generation_and_cache(live_game):
+    from app.engine import movement
     from app.gen import services
     from app.world import repo
 
     row = services.ensure_area(1, *floors.LANDING)
     content = repo.area_content(row)
-    assert content.name and content.description
+    assert content.description
     assert len(content.exits.open_dirs()) >= 3  # landing: multi-path
     assert not [e for e in content.entities if e.kind == "enemy"]  # landing is safe
-    print(f"\n{content.name}\n{content.description[:400]}")
+    print(f"\n{movement.coords(row)}\n{content.description[:400]}")
     print(f"Entities: {[(e.key, e.kind) for e in content.entities]}")
 
     before = db.get().execute("SELECT COUNT(*) c FROM llm_calls").fetchone()["c"]
@@ -61,6 +62,7 @@ def test_live_narration_has_no_host_voice(live_game):
 
 def test_live_enemy_belongs_to_its_room(live_game):
     """Local coherence (#2): the enemy generator sees the room's description."""
+    from app.engine import movement
     from app.gen import services
     from app.world import repo
 
@@ -70,7 +72,7 @@ def test_live_enemy_belongs_to_its_room(live_game):
     if not enemies:
         pytest.skip("no enemy generated in that room")
     e = enemies[0]
-    block = services.ensure_enemy(1, e.key, e.name, content.name, content.description)
+    block = services.ensure_enemy(1, e.key, e.name, movement.coords(row), content.description)
     from app.models import scale
     ref = scale.enemy(block.level)
     print(f"\n{block.name} (level {block.level}): hp={block.hp} atk={block.attack} "
