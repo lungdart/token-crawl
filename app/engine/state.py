@@ -292,6 +292,15 @@ class RunContext:
         if res and res.get("refills_in_safe_room", True):
             res["current"] = res["max"]
 
+    def resource_fn(self):
+        """The `resource_fn` apply_effects wants: `amount -> (delta, name)`, or None with
+        no class resource. Lives here because combat and loot both need it and combat
+        imports loot, so neither module can own it."""
+        res = self.resource
+        if not res:
+            return None
+        return lambda amount: (self.change_resource(amount), res["name"])
+
     # --- combat view of the player ------------------------------------------
 
     def player_combatant(self) -> Combatant:

@@ -168,19 +168,17 @@ def handle_novel(ctx: RunContext, verb_key: str, target_key: str, raw_text: str)
         success = roll + player.eff(stat) >= (ruling.difficulty or 10)
         ctx.say(f"[{stat.upper()}: d20({roll}) + {player.eff(stat)} vs {ruling.difficulty}]", "system")
 
-    from app.engine.combat import _resource_fn
-
     if success:
         ctx.say(ruling.narration_success or "It works.", "narration")
         for line in apply_effects(ruling.effects_on_success, player, player, ctx.rng,
-                                  resource_fn=_resource_fn(ctx)):
+                                  resource_fn=ctx.resource_fn()):
             ctx.say(line, "combat")
         if ruling.grants_item_spec is not None:
             _grant_item(ctx, ruling, target_key, entities.get(target_key))
     else:
         ctx.say(ruling.narration_failure or "It doesn't work.", "narration")
         for line in apply_effects(ruling.effects_on_failure, player, player, ctx.rng,
-                                  resource_fn=_resource_fn(ctx)):
+                                  resource_fn=ctx.resource_fn()):
             ctx.say(line, "combat")
 
     ctx.store_player(player)

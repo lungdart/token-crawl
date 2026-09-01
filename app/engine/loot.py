@@ -9,13 +9,6 @@ from app.gen import services
 from app.world import repo
 
 
-def _resource_fn(ctx: RunContext):
-    res = ctx.resource
-    if not res:
-        return None
-    return lambda amount: (ctx.change_resource(amount), res["name"])
-
-
 def roll_drop(ctx: RunContext, name_key: str, block) -> None:
     """First kill of a type generates the slot manifest; a roll landing on an empty slot
     generates that slot's item, which is then identical for everyone."""
@@ -81,7 +74,7 @@ def do_use_item(ctx: RunContext, item_name: str) -> None:
     player = ctx.player_combatant()
     ctx.say(f"You use the {item.name}.", "loot")
     for line in apply_effects(item.use_effects, player, player, ctx.rng,
-                              resource_fn=_resource_fn(ctx)):
+                              resource_fn=ctx.resource_fn()):
         ctx.say(line, "combat")
     ctx.store_player(player)
     if item.consumed_on_use:

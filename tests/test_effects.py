@@ -49,6 +49,26 @@ def test_resource_change_is_silent_without_a_resource():
     assert apply_effects(_effects([{"type": "resource_change", "amount": 5}]), c, c, rng) == []
 
 
+def test_the_resource_callback_has_exactly_one_definition():
+    """It was copied character for character into combat and loot, because combat imports
+    loot and so loot could not import it back. RunContext owns the resource, so it owns
+    the callback and the cycle stops mattering."""
+    from app.engine import combat, loot
+    from app.engine.state import RunContext
+
+    assert callable(RunContext.resource_fn)
+    for module in (combat, loot):
+        assert not hasattr(module, "_resource_fn"), (
+            f"{module.__name__} still defines its own copy; call ctx.resource_fn() instead")
+
+    ctx = RunContext(run={"stats": {"resource": {"name": "Rage", "current": 2, "max": 10}}},
+                     rng=RunRNG(seed=1, counter=0))
+    assert ctx.resource_fn()(5) == (5, "Rage")
+    assert ctx.run["stats"]["resource"]["current"] == 7
+
+    assert RunContext(run={"stats": {}}, rng=RunRNG(seed=1, counter=0)).resource_fn() is None
+
+
 def test_on_hit_trigger_cannot_nest_another_trigger():
     """The recursion was removed: a self-referential union becomes an unresolvable $ref
     loop under strict structured output."""

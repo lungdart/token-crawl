@@ -31,13 +31,6 @@ def _hit(attacker: Combatant, defender: Combatant, rng) -> bool:
     return rng.random() <= hit_chance(attacker, defender)
 
 
-def _resource_fn(ctx: RunContext):
-    res = ctx.resource
-    if not res:
-        return None
-    return lambda amount: (ctx.change_resource(amount), res["name"])
-
-
 def _enemy_combatants(ctx: RunContext) -> list[tuple[dict, Combatant]]:
     """Materialize per-run enemy instances for the current area (lazily created)."""
     combat = ctx.run["combat"]
@@ -155,7 +148,7 @@ def do_attack(ctx: RunContext, target_key: str) -> None:
         weapon = ctx.equipped_weapon()
         if weapon:
             triggers = [e for e in weapon["item"].equip_effects if e.type == "on_hit_trigger"]
-            for line in apply_effects(triggers, player, enemy, ctx.rng, resource_fn=_resource_fn(ctx)):
+            for line in apply_effects(triggers, player, enemy, ctx.rng, resource_fn=ctx.resource_fn()):
                 ctx.say(line, "combat")
     else:
         ctx.say_line("player_miss", "combat")
@@ -203,7 +196,7 @@ def do_use_ability(ctx: RunContext, ability_name: str) -> None:
     enemies = _enemy_combatants(ctx)
     target_meta, target = (enemies[0] if enemies else (None, player))
     ctx.say(f"{ability.name}. {ability.flavor}", "combat")
-    for line in apply_effects(ability.effects, player, target, ctx.rng, resource_fn=_resource_fn(ctx)):
+    for line in apply_effects(ability.effects, player, target, ctx.rng, resource_fn=ctx.resource_fn()):
         ctx.say(line, "combat")
     if ability.cooldown > 0:
         cds[ability.name] = ability.cooldown + 1
