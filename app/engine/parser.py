@@ -1,5 +1,5 @@
 """Tier 0: regex/keyword fast path (free, covers most commands).
-Tier 1: Haiku fallback that doubles as the injection GATEKEEPER."""
+Tier 1: parser-model fallback that doubles as the injection GATEKEEPER."""
 from __future__ import annotations
 
 import re
@@ -82,7 +82,7 @@ def fast_parse(text: str, entity_keys: list[str], in_shop: bool,
         key = _match_entity(m.group(1), entity_keys)
         if key:
             return Attack(type="attack", target_key=key)
-        return None  # let Haiku disambiguate
+        return None  # let the parser tier disambiguate
     m = re.match(r"^(?:take(?!\s+off\b)|grab|get|loot|pick up)\s+(.+)$", t)
     if m:
         key = _match_entity(m.group(1), entity_keys)

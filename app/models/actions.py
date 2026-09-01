@@ -86,5 +86,5 @@ CanonicalAction = Annotated[
 
 
 class ParsedAction(BaseModel):
-    """Haiku parser output schema."""
+    """Parser tier output schema."""
     action: CanonicalAction

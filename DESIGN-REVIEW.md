@@ -1,6 +1,6 @@
 # Design review — decisions and status
 
-**Status: all 14 decisions implemented.** 132 offline tests + 8 live tests pass.
+**Status: all 14 decisions implemented.** 133 offline tests + 8 live tests pass.
 
 Running notes from reviewing the build against the actual intent.
 Terminology: the per-floor `.md` file is a **floor plan**. (I had been calling it a
