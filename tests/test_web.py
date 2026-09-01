@@ -21,9 +21,31 @@ def test_index_and_character_creation_flow(client):
 
 
 def test_inventory_search(client):
+    """The search box lives inside #inventory-panel and targets it, so the route has to
+    return the whole panel. Returning only the list swapped the input the player was
+    typing into out of the DOM — the box worked once and then vanished."""
+    import re
+
     client.post("/crawler", data={"name": "Searchy", "concept": "an archivist"})
+
+    r = client.get("/inventory", params={"q": ""})
+    assert r.status_code == 200
+    names = re.findall(r'<span class="inv-name">([^<×]+)', r.text)
+    assert names, "the fixture crawler should start with something to search for"
+    needle = names[0].strip().split()[-1]
+
+    r = client.get("/inventory", params={"q": needle})
+    assert r.status_code == 200
+    assert 'class="inv-search"' in r.text, "the search box was swapped out of the page"
+    assert f'value="{needle}"' in r.text, "the typed query was not echoed back"
+    assert needle in r.text
+
     r = client.get("/inventory", params={"q": "zzz-no-match"})
     assert r.status_code == 200
+    assert 'class="inv-search"' in r.text, "a fruitless search must leave the box behind"
+    assert 'value="zzz-no-match"' in r.text
+    assert "— nothing —" in r.text
+    assert needle not in r.text
 
 def test_leaderboard_page(client):
     r = client.get("/leaderboard")

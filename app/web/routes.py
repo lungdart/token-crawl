@@ -239,7 +239,10 @@ def inventory_search(request: Request, q: str = ""):
         gc["inventory"] = [e for e in gc["inventory"]
                            if ql in e["item"].name.lower() or ql in e["item"].flavor.lower()]
     gc["inv_query"] = q
-    return templates.TemplateResponse(request, "partials/inventory_list.html", gc)
+    # The panel, not just the list: the search box lives inside #inventory-panel and
+    # targets it, so returning only the list would swap the input the player is typing
+    # into out of the page.
+    return templates.TemplateResponse(request, "partials/inventory_panel.html", gc)
 
 
 @router.post("/reroll")
