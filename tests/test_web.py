@@ -1,19 +1,4 @@
 """Browser-level loop through the FastAPI app, offline on the fixture backend."""
-import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture()
-def client(game, monkeypatch):
-    # lifespan would re-init the db against settings.db_path; game fixture already did setup
-    from app.web.routes import router
-    from fastapi import FastAPI
-    from fastapi.staticfiles import StaticFiles
-
-    app = FastAPI()
-    app.include_router(router)
-    app.mount("/static", StaticFiles(directory="app/web/static"), name="static")
-    return TestClient(app)
 
 
 def test_index_and_character_creation_flow(client):
